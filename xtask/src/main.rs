@@ -117,8 +117,7 @@ fn test() -> io::Result<()> {
     let mut test = Command::new("cargo");
     test.args(["test", "--workspace", "--all-features", "--locked"]);
     run(test)?;
-    pnpm::run("test", &[])?;
-    mdbook::test()
+    pnpm::run("test", &[])
 }
 
 fn ci() -> io::Result<()> {

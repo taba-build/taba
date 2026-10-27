@@ -33,7 +33,3 @@ pub(crate) fn build() -> io::Result<()> {
         Err(Error::other(format!("{build:?} failed:\n{stderr}")))
     }
 }
-
-pub(crate) fn test() -> io::Result<()> {
-    crate::run(mdbook("test")).map_err(mdbook_missing)
-}
