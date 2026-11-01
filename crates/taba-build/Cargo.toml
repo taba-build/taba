@@ -9,6 +9,9 @@ repository.workspace = true
 rust-version.workspace = true
 readme.workspace = true
 
+[lib]
+path = "src/bundle/mod.rs"
+
 [dependencies]
 taba-rolldown.workspace = true
 tokio.workspace = true
