@@ -4,6 +4,8 @@
 extern crate alloc;
 
 mod error;
+#[cfg(feature = "rpc")]
+pub mod rpc;
 
 use alloc::string::{String, ToString as _};
 use core::fmt::{self, Display, Write};
