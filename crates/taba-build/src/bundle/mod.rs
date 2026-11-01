@@ -1,16 +1,13 @@
-//! Taba's build-time bundler
-
-mod error;
-
 use std::path::Path;
 
+pub use error::Error;
 use taba_rolldown::{
     rolldown::{Bundler, BundlerOptions, CodeSplittingMode, InputItem, OutputFormat},
     rolldown_common::{AddonOutputOption, Output},
     rolldown_error::EventKind,
 };
 
-pub use crate::error::Error;
+mod error;
 
 /// Alias for a `Result` with the error type `taba_build::Error`.
 pub type Result<T, E = Error> = std::result::Result<T, E>;

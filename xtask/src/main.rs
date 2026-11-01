@@ -86,7 +86,16 @@ fn fmt(check: bool) -> io::Result<()> {
 
 fn lint() -> io::Result<()> {
     let mut clippy = Command::new("cargo");
-    clippy.args(["clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"]);
+    clippy.args([
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--locked",
+        "--",
+        "-D",
+        "warnings",
+    ]);
     run(clippy)?;
 
     let mut no_std = Command::new("cargo");
@@ -94,7 +103,7 @@ fn lint() -> io::Result<()> {
     run(no_std)?;
 
     let mut doc = Command::new("cargo");
-    doc.args(["doc", "--workspace", "--no-deps", "--locked"]);
+    doc.args(["doc", "--workspace", "--no-deps", "--all-features", "--locked"]);
     doc.env("RUSTDOCFLAGS", "-D warnings");
     run(doc)?;
 
@@ -105,7 +114,7 @@ fn lint() -> io::Result<()> {
 
 fn test() -> io::Result<()> {
     let mut test = Command::new("cargo");
-    test.args(["test", "--workspace", "--locked"]);
+    test.args(["test", "--workspace", "--all-features", "--locked"]);
     run(test)?;
     mdbook::test()
 }
