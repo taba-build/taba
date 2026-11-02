@@ -8,7 +8,7 @@ use std::{
 use clap::{Parser, Subcommand};
 
 mod mdbook;
-mod uv;
+mod pnpm;
 
 #[derive(Parser)]
 enum Xtask {
@@ -51,8 +51,8 @@ fn main() {
         Xtask::Lint => lint(),
         Xtask::Test => test(),
         Xtask::Ci => ci(),
-        Xtask::Rolldown(Rolldown::Pin { version }) => uv::run("rolldown.py", &["pin", &version]),
-        Xtask::Rolldown(Rolldown::Msrv) => uv::run("rolldown.py", &["msrv"]),
+        Xtask::Rolldown(Rolldown::Pin { version }) => pnpm::run("rolldown", &["pin", &version]),
+        Xtask::Rolldown(Rolldown::Msrv) => pnpm::run("rolldown", &["msrv"]),
     };
 
     if let Err(error) = result {
@@ -74,14 +74,14 @@ fn fmt(check: bool) -> io::Result<()> {
     let mut rustfmt = Command::new("cargo");
     rustfmt.arg("+nightly-2026-02-28"); // our MSRV's nightly, for nightly-only rustfmt settings
     rustfmt.args(["fmt", "--all"]); // otherwise only the current dir's crate
-    let mut ruff = vec!["format", "--quiet"];
+    let mut oxfmt = vec![];
     if check {
         rustfmt.arg("--check");
-        ruff.push("--check");
+        oxfmt.push("--check");
     }
 
     run(rustfmt)?;
-    uv::opt("ruff", &ruff)
+    pnpm::opt("fmt", &oxfmt)
 }
 
 fn lint() -> io::Result<()> {
@@ -107,8 +107,8 @@ fn lint() -> io::Result<()> {
     doc.env("RUSTDOCFLAGS", "-D warnings");
     run(doc)?;
 
-    uv::opt("ruff", &["check", "--quiet"])?;
-    uv::opt("ty", &["check"])?;
+    pnpm::opt("lint", &[])?;
+    pnpm::opt("typecheck", &[])?;
     mdbook::build()
 }
 
@@ -116,11 +116,12 @@ fn test() -> io::Result<()> {
     let mut test = Command::new("cargo");
     test.args(["test", "--workspace", "--all-features", "--locked"]);
     run(test)?;
+    pnpm::opt("test", &[])?;
     mdbook::test()
 }
 
 fn ci() -> io::Result<()> {
-    uv::require()?;
+    pnpm::require()?;
     fmt(true)?;
     lint()?;
     test()

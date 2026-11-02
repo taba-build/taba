@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "module": "node20",
+    "lib": ["es2025"],
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["rolldown.ts"]
+}

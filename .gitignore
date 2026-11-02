@@ -1,6 +1,9 @@
 # experiments and throwaway code
 /research/
 
+# node
+node_modules/
+
 # rust
 /target/
 

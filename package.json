@@ -1,0 +1,30 @@
+{
+  "private": true,
+  "scripts": {
+    "fmt": "oxfmt",
+    "lint": "oxlint --deny-warnings",
+    "typecheck": "tsc -p xtask",
+    "test": "node --test \"xtask/**/*.test.ts\"",
+    "rolldown": "node xtask/rolldown.ts"
+  },
+  "devDependencies": {
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
+    "typescript": "^7.0.2"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.16.1",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "^26.13.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "pnpm": ">=11"
+  }
+}
