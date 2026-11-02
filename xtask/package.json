@@ -2,6 +2,10 @@
   "name": "xtask",
   "private": true,
   "type": "module",
+  "scripts": {
+    "rolldown": "node src/rolldown.ts",
+    "test": "node --test \"src/**/*.test.ts\""
+  },
   "devDependencies": {
     "@types/node": "^26.6.6"
   }

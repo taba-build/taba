@@ -4,8 +4,7 @@
     "fmt": "oxfmt",
     "lint": "oxlint --deny-warnings",
     "typecheck": "tsc -p xtask",
-    "test": "node --test \"xtask/**/*.test.ts\"",
-    "rolldown": "node xtask/rolldown.ts"
+    "test": "pnpm --filter xtask run test"
   },
   "devDependencies": {
     "oxfmt": "^0.75.0",

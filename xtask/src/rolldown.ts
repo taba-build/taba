@@ -48,7 +48,7 @@ async function fetchReleases(crate: string) {
 
 /** Replace everything below the marker with `lines`. */
 function regenerate(file: string, lines: string[]) {
-  const path = new URL(`../crates/taba-rolldown/${file}`, import.meta.url);
+  const path = new URL(`../../crates/taba-rolldown/${file}`, import.meta.url);
   const [head, old] = readFileSync(path, "utf8").split(MARKER, 2);
   if (old === undefined) bail(`${path.pathname} has no marker: ${MARKER.trim()}`);
   writeFileSync(path, `${head}${MARKER}${lines.join("\n")}\n`);

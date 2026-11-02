@@ -8,5 +8,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["rolldown.ts"]
+  "include": ["src"]
 }

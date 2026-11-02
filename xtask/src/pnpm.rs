@@ -1,4 +1,4 @@
-//! [`pnpm`] handles all Node tooling, through the scripts in the root `package.json`.
+//! [`pnpm`] handles all Node tooling, through the scripts in each `package.json`.
 //!
 //! [`pnpm`]: https://pnpm.io/
 
@@ -16,13 +16,17 @@ fn pnpm() -> Command {
 }
 
 /// `pnpm run` from any cwd, failing on a stale `pnpm-lock.yaml`.
-fn script(name: &str, args: &[&str]) -> io::Result<()> {
+fn script(filter: Option<&str>, name: &str, args: &[&str]) -> io::Result<()> {
     let mut install = pnpm();
     install.args(["install", "--frozen-lockfile", "--silent"]);
     crate::run(install)?;
 
     let mut script = pnpm();
-    script.args(["--silent", "run", name]).args(args);
+    script.arg("--silent");
+    if let Some(filter) = filter {
+        script.args(["--filter", filter]);
+    }
+    script.args(["run", name]).args(args);
     crate::run(script)
 }
 
@@ -33,9 +37,9 @@ fn pnpm_missing(error: Error) -> Error {
     }
 }
 
-/// [`script()`], explaining a missing `pnpm`.
+/// A script of the `xtask` package, explaining a missing `pnpm`.
 pub(crate) fn run(name: &str, args: &[&str]) -> io::Result<()> {
-    script(name, args).map_err(pnpm_missing)
+    script(Some("xtask"), name, args).map_err(pnpm_missing)
 }
 
 /// Ensure `pnpm` is available.
@@ -45,9 +49,9 @@ pub(crate) fn require() -> io::Result<()> {
     crate::run(version).map_err(pnpm_missing)
 }
 
-/// [`run()`], only if `pnpm` is available.
+/// A script of the root package, only if `pnpm` is available.
 pub(crate) fn opt(name: &str, args: &[&str]) -> io::Result<()> {
-    script(name, args).or_else(|error| match error.kind() {
+    script(None, name, args).or_else(|error| match error.kind() {
         ErrorKind::NotFound => {
             eprintln!("xtask warning: skipping `{name}`: {NEEDS_PNPM}");
             Ok(())
