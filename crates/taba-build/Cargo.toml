@@ -9,12 +9,19 @@ repository.workspace = true
 rust-version.workspace = true
 readme.workspace = true
 
+[features]
+bundle = ["dep:taba-rolldown", "dep:tokio"]
+
 [dependencies]
-taba-rolldown.workspace = true
-tokio.workspace = true
+taba-rolldown = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta.workspace = true
+
+[[test]]
+name = "bundle"
+required-features = ["bundle"]
 
 [lints]
 workspace = true
