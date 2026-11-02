@@ -7,19 +7,24 @@ use std::{
     process::Command,
 };
 
-const NEEDS_PNPM: &str = "needs pnpm (https://pnpm.io/installation)";
-
 fn pnpm() -> Command {
     let mut pnpm = Command::new("pnpm");
     pnpm.current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     pnpm
 }
 
+fn pnpm_missing(error: Error) -> Error {
+    match error.kind() {
+        ErrorKind::NotFound => Error::other("needs pnpm (https://pnpm.io/installation)"),
+        _ => error,
+    }
+}
+
 /// `pnpm run` from any cwd, failing on a stale `pnpm-lock.yaml`.
 fn script(filter: Option<&str>, name: &str, args: &[&str]) -> io::Result<()> {
     let mut install = pnpm();
     install.args(["install", "--frozen-lockfile", "--silent"]);
-    crate::run(install)?;
+    crate::run(install).map_err(pnpm_missing)?;
 
     let mut script = pnpm();
     script.arg("--silent");
@@ -30,32 +35,12 @@ fn script(filter: Option<&str>, name: &str, args: &[&str]) -> io::Result<()> {
     crate::run(script)
 }
 
-fn pnpm_missing(error: Error) -> Error {
-    match error.kind() {
-        ErrorKind::NotFound => Error::other(NEEDS_PNPM),
-        _ => error,
-    }
-}
-
-/// A script of the `xtask` package, explaining a missing `pnpm`.
+/// A script of the root package.
 pub(crate) fn run(name: &str, args: &[&str]) -> io::Result<()> {
-    script(Some("xtask"), name, args).map_err(pnpm_missing)
+    script(None, name, args)
 }
 
-/// Ensure `pnpm` is available.
-pub(crate) fn require() -> io::Result<()> {
-    let mut version = pnpm();
-    version.arg("--version");
-    crate::run(version).map_err(pnpm_missing)
-}
-
-/// A script of the root package, only if `pnpm` is available.
-pub(crate) fn opt(name: &str, args: &[&str]) -> io::Result<()> {
-    script(None, name, args).or_else(|error| match error.kind() {
-        ErrorKind::NotFound => {
-            eprintln!("xtask warning: skipping `{name}`: {NEEDS_PNPM}");
-            Ok(())
-        }
-        _ => Err(error),
-    })
+/// A script of the `xtask` package.
+pub(crate) fn xtask(name: &str, args: &[&str]) -> io::Result<()> {
+    script(Some("xtask"), name, args)
 }

@@ -51,8 +51,8 @@ fn main() {
         Xtask::Lint => lint(),
         Xtask::Test => test(),
         Xtask::Ci => ci(),
-        Xtask::Rolldown(Rolldown::Pin { version }) => pnpm::run("rolldown", &["pin", &version]),
-        Xtask::Rolldown(Rolldown::Msrv) => pnpm::run("rolldown", &["msrv"]),
+        Xtask::Rolldown(Rolldown::Pin { version }) => pnpm::xtask("rolldown", &["pin", &version]),
+        Xtask::Rolldown(Rolldown::Msrv) => pnpm::xtask("rolldown", &["msrv"]),
     };
 
     if let Err(error) = result {
@@ -81,7 +81,7 @@ fn fmt(check: bool) -> io::Result<()> {
     }
 
     run(rustfmt)?;
-    pnpm::opt("fmt", &oxfmt)
+    pnpm::run("fmt", &oxfmt)
 }
 
 fn lint() -> io::Result<()> {
@@ -107,8 +107,8 @@ fn lint() -> io::Result<()> {
     doc.env("RUSTDOCFLAGS", "-D warnings");
     run(doc)?;
 
-    pnpm::opt("lint", &[])?;
-    pnpm::opt("typecheck", &[])?;
+    pnpm::run("lint", &[])?;
+    pnpm::run("typecheck", &[])?;
     mdbook::build()
 }
 
@@ -116,12 +116,11 @@ fn test() -> io::Result<()> {
     let mut test = Command::new("cargo");
     test.args(["test", "--workspace", "--all-features", "--locked"]);
     run(test)?;
-    pnpm::opt("test", &[])?;
+    pnpm::run("test", &[])?;
     mdbook::test()
 }
 
 fn ci() -> io::Result<()> {
-    pnpm::require()?;
     fmt(true)?;
     lint()?;
     test()
