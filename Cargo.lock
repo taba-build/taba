@@ -2460,6 +2460,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "specta-typescript"
+version = "0.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a113bb506b00463cfb54c5819e55ec081bc7d52ef463d7726181e9073cd473a"
+dependencies = [
+ "specta",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2548,6 +2557,7 @@ dependencies = [
  "serde_core",
  "serde_json",
  "specta",
+ "specta-typescript",
 ]
 
 [[package]]

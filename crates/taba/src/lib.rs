@@ -21,6 +21,9 @@ pub type Result<T, E = Error> = core::result::Result<T, E>;
 #[doc(hidden)]
 pub mod __private {
     pub use alloc::string::String;
+
+    #[cfg(feature = "rpc")]
+    pub use crate::rpc::__private as rpc;
 }
 
 /// Include `taba-build` output as the named module.
