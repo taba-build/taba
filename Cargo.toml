@@ -5,6 +5,7 @@ default-members = ["crates/*"]
 
 [workspace.dependencies]
 insta = "1.49.0"
+serde = { version = "1", default-features = false }
 serde_core = { version = "1", default-features = false }
 serde_json = { version = "1", default-features = false }
 specta = "=2.0.0-rc.27"

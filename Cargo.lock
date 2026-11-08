@@ -2554,6 +2554,7 @@ name = "taba"
 version = "0.0.0"
 dependencies = [
  "insta",
+ "serde",
  "serde_core",
  "serde_json",
  "specta",

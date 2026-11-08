@@ -2,20 +2,35 @@
 
 use core::convert::Infallible;
 
-use serde_core::{
+use serde::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{self, DeserializeOwned},
 };
 use specta::{Type, Types, datatype::DataType};
 use specta_typescript::Number;
 
-use self::__private::SafeInteger;
+use self::__private::*;
 
 #[doc(hidden)]
 pub mod __private {
+    use serde::Deserialize;
+    use serde_json::value::RawValue;
+
     /// A [Safe JavaScript Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger#description).
     #[derive(Debug)]
     pub struct SafeInteger(pub(super) u64);
+
+    /// What the page sends.
+    ///
+    /// `value` comes last for [`RawValue`]'s deferred parsing.
+    #[derive(Debug, Deserialize)]
+    #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
+    pub enum Message<'a> {
+        Call(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+        Subscribe(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+        Next(SafeInteger),
+        Cancel(SafeInteger),
+    }
 }
 
 /// A request from the page, with its handler's return types.
@@ -71,10 +86,12 @@ impl Type for SafeInteger {
 
 #[cfg(test)]
 mod tests {
+    use alloc::vec::Vec;
+
     use specta::{Type, Types};
     use specta_typescript::{Typescript, primitives};
 
-    use super::SafeInteger;
+    use super::{Message, SafeInteger};
 
     /// [`Number.MAX_SAFE_INTEGER`]'s example.
     ///
@@ -98,5 +115,48 @@ mod tests {
         let definition = SafeInteger::definition(&mut types);
         let exported = primitives::inline(&Typescript::default(), &types, &definition).unwrap();
         insta::assert_snapshot!(exported, @"number");
+    }
+
+    #[test]
+    fn every_message_kind() {
+        let batch = r#"[
+            {"kind":"call","value":[7,"buy",{"generator":"drill"}]},
+            {"kind":"subscribe","value":[8,"resources",{"resource":"ore"}]},
+            {"kind":"next","value":8},
+            {"kind":"cancel","value":8}
+        ]"#;
+        let batch: Vec<Message> = serde_json::from_str(batch).unwrap();
+        insta::assert_debug_snapshot!(batch, @r#"
+        [
+            Call(
+                SafeInteger(
+                    7,
+                ),
+                "buy",
+                RawValue(
+                    {"generator":"drill"},
+                ),
+            ),
+            Subscribe(
+                SafeInteger(
+                    8,
+                ),
+                "resources",
+                RawValue(
+                    {"resource":"ore"},
+                ),
+            ),
+            Next(
+                SafeInteger(
+                    8,
+                ),
+            ),
+            Cancel(
+                SafeInteger(
+                    8,
+                ),
+            ),
+        ]
+        "#);
     }
 }

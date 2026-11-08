@@ -10,9 +10,10 @@ rust-version.workspace = true
 readme.workspace = true
 
 [features]
-rpc = ["dep:specta", "dep:specta-typescript"]
+rpc = ["dep:serde", "serde_json/raw_value", "dep:specta", "dep:specta-typescript"]
 
 [dependencies]
+serde = { workspace = true, optional = true, features = ["alloc", "derive"] }
 serde_core.workspace = true
 serde_json = { workspace = true, features = ["alloc"] }
 specta = { workspace = true, optional = true }
