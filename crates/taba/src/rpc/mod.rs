@@ -9,7 +9,7 @@ use specta::{Type, Types, datatype::DataType};
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::wire::{Message, SafeInteger};
+    pub use super::wire::{Frame, Kind, Message, SafeInteger};
 }
 
 /// A request from the page, with its handler's return types.

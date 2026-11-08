@@ -1,5 +1,7 @@
 //! Rust <-> page.
 
+use alloc::{boxed::Box, string::String};
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::value::RawValue;
 use specta::{Type, Types, datatype::DataType};
@@ -51,14 +53,39 @@ pub enum Message<'a> {
     Cancel(SafeInteger),
 }
 
+/// What a poll returns.
+#[derive(Debug, Serialize)]
+pub struct Frame {
+    /// Its message's id.
+    pub id: SafeInteger,
+    /// Beside `id` on the wire.
+    #[serde(flatten)]
+    pub kind: Kind,
+}
+
+/// What a frame tells the page.
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", content = "value", rename_all = "lowercase")]
+pub enum Kind {
+    /// A handler's `Ok`.
+    Value(Box<RawValue>),
+    /// A handler's `Err`, which no frame follows.
+    Error(Box<RawValue>),
+    /// After a stream's last value.
+    End,
+    /// [`taba`](crate)'s own failure, which the page rejects.
+    Reject(String),
+}
+
 #[cfg(test)]
 mod tests {
     use alloc::vec::Vec;
 
+    use serde_json::value::RawValue;
     use specta::{Type, Types};
     use specta_typescript::{Typescript, primitives};
 
-    use super::{Message, SafeInteger};
+    use super::{Frame, Kind, Message, SafeInteger};
 
     /// [`Number.MAX_SAFE_INTEGER`]'s example.
     ///
@@ -124,6 +151,24 @@ mod tests {
                 ),
             ),
         ]
+        "#);
+    }
+
+    #[test]
+    fn every_frame_kind() {
+        let json = |json: &str| RawValue::from_string(json.into()).unwrap();
+        let frames = [
+            Frame { id: SafeInteger(0), kind: Kind::Value(json("4")) },
+            Frame { id: SafeInteger(1), kind: Kind::Error(json(r#""not enough ore""#)) },
+            Frame { id: SafeInteger(2), kind: Kind::End },
+            Frame { id: SafeInteger(3), kind: Kind::Reject("this handler panicked".into()) },
+        ];
+        let frames = frames.map(|frame| serde_json::to_string(&frame).unwrap());
+        insta::assert_snapshot!(frames.join("\n"), @r#"
+        {"id":0,"kind":"value","value":4}
+        {"id":1,"kind":"error","value":"not enough ore"}
+        {"id":2,"kind":"end"}
+        {"id":3,"kind":"reject","value":"this handler panicked"}
         "#);
     }
 }
