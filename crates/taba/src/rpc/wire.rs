@@ -1,62 +1,13 @@
-//! Taba's RPC
+//! Rust <-> page.
 
-use core::convert::Infallible;
-
-use serde::{
-    Deserialize, Deserializer, Serialize, Serializer,
-    de::{self, DeserializeOwned},
-};
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use serde_json::value::RawValue;
 use specta::{Type, Types, datatype::DataType};
 use specta_typescript::Number;
 
-use self::__private::*;
-
-#[doc(hidden)]
-pub mod __private {
-    use serde::Deserialize;
-    use serde_json::value::RawValue;
-
-    /// A [Safe JavaScript Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger#description).
-    #[derive(Debug)]
-    pub struct SafeInteger(pub(super) u64);
-
-    /// What the page sends.
-    ///
-    /// `value` comes last for [`RawValue`]'s deferred parsing.
-    #[derive(Debug, Deserialize)]
-    #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
-    pub enum Message<'a> {
-        Call(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
-        Subscribe(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
-        Next(SafeInteger),
-        Cancel(SafeInteger),
-    }
-}
-
-/// A request from the page, with its handler's return types.
-pub trait Procedure: DeserializeOwned + Type + Send + 'static {
-    /// A successful handler in `Ok`.
-    type Output: Serialize + Type + Send;
-
-    /// A failed handler in `Err`.
-    type Error: Serialize + Type + Send;
-}
-
-/// An error that can never happen.
+/// A [Safe JavaScript Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger#description).
 #[derive(Debug)]
-pub enum Never {}
-
-impl Serialize for Never {
-    fn serialize<S: Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
-        match *self {}
-    }
-}
-
-impl Type for Never {
-    fn definition(types: &mut Types) -> DataType {
-        Infallible::definition(types)
-    }
-}
+pub struct SafeInteger(u64);
 
 impl SafeInteger {
     /// [`Number.MAX_SAFE_INTEGER`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER).
@@ -82,6 +33,22 @@ impl Type for SafeInteger {
     fn definition(types: &mut Types) -> DataType {
         Number::<()>::definition(types)
     }
+}
+
+/// Requests from the page.
+///
+/// `value` comes last for [`RawValue`]'s deferred parsing.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", content = "value", rename_all = "lowercase")]
+pub enum Message<'a> {
+    /// Answered once.
+    Call(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+    /// Answered once per [`Next`](Self::Next).
+    Subscribe(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+    /// Pulls one value.
+    Next(SafeInteger),
+    /// Abort a call or subscription's task.
+    Cancel(SafeInteger),
 }
 
 #[cfg(test)]
