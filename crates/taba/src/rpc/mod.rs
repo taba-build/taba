@@ -1,37 +1,32 @@
 //! Taba's RPC
 
+mod router;
 mod wire;
 
 use core::{convert::Infallible, marker::PhantomData};
 
-use serde::{Serialize, Serializer, de::DeserializeOwned};
+use serde::{Serialize, Serializer};
 use specta::{Type, Types, datatype::DataType};
+
+pub use self::router::{Error, Handler, Procedures, Router};
 
 #[doc(hidden)]
 pub mod __private {
     pub use super::wire::{Frame, Kind, Message, SafeInteger};
 }
 
-/// A request from the page, with its handler's return types.
-pub trait Procedure: DeserializeOwned + Type + Send + 'static {
-    /// A successful handler in `Ok`.
-    type Output: Output;
+/// What the page can call or subscribe to.
+pub trait Procedure {
+    /// What the page gets on success.
+    type Output;
 
-    /// A failed handler in `Err`.
-    type Error: Serialize + Type + Send;
+    /// What the page gets on error.
+    type Error;
 }
-
-/// What a procedure can output: one value, or a [`Strand`] of them.
-#[diagnostic::on_unimplemented(message = "`{Self}` can't be a procedure's output")]
-pub trait Output {}
-
-impl<T: Serialize + Type + Send> Output for T {}
 
 /// A subscription's `T`s, as a procedure's [`Output`](Procedure::Output).
 #[derive(Debug)]
 pub struct Strand<T>(PhantomData<T>);
-
-impl<T: Serialize + Type + Send> Output for Strand<T> {}
 
 /// An error that can never happen.
 #[derive(Debug)]

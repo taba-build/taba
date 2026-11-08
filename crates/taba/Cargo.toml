@@ -21,6 +21,7 @@ specta-typescript = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta.workspace = true
+specta = { workspace = true, features = ["derive"] }
 
 [lints]
 workspace = true
