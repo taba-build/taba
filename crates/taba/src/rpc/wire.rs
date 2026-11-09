@@ -1,6 +1,9 @@
 //! Rust <-> page.
 
-use alloc::{boxed::Box, string::String};
+use alloc::{
+    boxed::Box,
+    string::{String, ToString},
+};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::value::RawValue;
@@ -74,7 +77,36 @@ pub enum Kind {
     /// After a stream's last value.
     End,
     /// [`taba`](crate)'s own failure, which the page rejects.
-    Reject(String),
+    Reject(Rejection),
+}
+
+impl Kind {
+    /// Reject as [`Rejection::Unknown`].
+    pub fn unknown(name: String) -> Self {
+        Kind::Reject(Rejection::Unknown(name))
+    }
+
+    /// Reject as [`Rejection::Invalid`].
+    pub fn invalid(error: serde_json::Error) -> Self {
+        Kind::Reject(Rejection::Invalid(error.to_string()))
+    }
+
+    /// Reject as [`Rejection::Unencodable`].
+    pub fn unencodable(error: serde_json::Error) -> Self {
+        Kind::Reject(Rejection::Unencodable(error.to_string()))
+    }
+}
+
+/// Why [`taba`](crate) rejected a request.
+#[derive(Debug, Serialize)]
+#[serde(tag = "kind", content = "value", rename_all = "lowercase")]
+pub enum Rejection {
+    /// No procedure has this name.
+    Unknown(String),
+    /// A request serde can't parse, and why.
+    Invalid(String),
+    /// An answer serde can't encode, and why.
+    Unencodable(String),
 }
 
 #[cfg(test)]
@@ -85,7 +117,7 @@ mod tests {
     use specta::{Type, Types};
     use specta_typescript::{Typescript, primitives};
 
-    use super::{Frame, Kind, Message, SafeInteger};
+    use super::{Frame, Kind, Message, Rejection, SafeInteger};
 
     /// [`Number.MAX_SAFE_INTEGER`]'s example.
     ///
@@ -161,14 +193,24 @@ mod tests {
             Frame { id: SafeInteger(0), kind: Kind::Value(json("4")) },
             Frame { id: SafeInteger(1), kind: Kind::Error(json(r#""not enough ore""#)) },
             Frame { id: SafeInteger(2), kind: Kind::End },
-            Frame { id: SafeInteger(3), kind: Kind::Reject("this handler panicked".into()) },
+            Frame { id: SafeInteger(3), kind: Kind::Reject(Rejection::Unknown("sell".into())) },
+            Frame {
+                id: SafeInteger(4),
+                kind: Kind::Reject(Rejection::Invalid("trailing comma".into())),
+            },
+            Frame {
+                id: SafeInteger(5),
+                kind: Kind::Reject(Rejection::Unencodable("key must be a string".into())),
+            },
         ];
         let frames = frames.map(|frame| serde_json::to_string(&frame).unwrap());
         insta::assert_snapshot!(frames.join("\n"), @r#"
         {"id":0,"kind":"value","value":4}
         {"id":1,"kind":"error","value":"not enough ore"}
         {"id":2,"kind":"end"}
-        {"id":3,"kind":"reject","value":"this handler panicked"}
+        {"id":3,"kind":"reject","value":{"kind":"unknown","value":"sell"}}
+        {"id":4,"kind":"reject","value":{"kind":"invalid","value":"trailing comma"}}
+        {"id":5,"kind":"reject","value":{"kind":"unencodable","value":"key must be a string"}}
         "#);
     }
 }

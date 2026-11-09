@@ -134,7 +134,7 @@ impl Router {
     ) -> impl Future<Output = Kind> + Send + use<> {
         match self.calls.get(name) {
             Some(call) => (call.0)(request),
-            None => Box::pin(ready(Kind::Reject(format!("no procedure `{name}`")))),
+            None => Box::pin(ready(Kind::unknown(name.to_string()))),
         }
     }
 }
@@ -155,7 +155,7 @@ impl Call {
     {
         Self(Box::new(move |request| match serde_json::from_str::<P>(request.get()) {
             Ok(request) => Box::pin(Self::answer(handler.call(request))),
-            Err(error) => Box::pin(ready(Kind::Reject(error.to_string()))),
+            Err(error) => Box::pin(ready(Kind::invalid(error))),
         }))
     }
 
@@ -169,7 +169,7 @@ impl Call {
             Ok(output) => to_raw_value(&output).map(Kind::Value),
             Err(error) => to_raw_value(&error).map(Kind::Error),
         };
-        encoded.unwrap_or_else(|error| Kind::Reject(error.to_string()))
+        encoded.unwrap_or_else(Kind::unencodable)
     }
 }
 
@@ -298,8 +298,8 @@ mod tests {
         insta::assert_snapshot!(answers.join("\n"), @r#"
         {"kind":"value","value":4}
         {"kind":"error","value":{"CantAfford":{"missing":30}}}
-        {"kind":"reject","value":"missing field `generator` at line 1 column 20"}
-        {"kind":"reject","value":"no procedure `taba::rpc::router::tests::idle_game::Sell`"}
+        {"kind":"reject","value":{"kind":"invalid","value":"missing field `generator` at line 1 column 20"}}
+        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Sell"}}
         "#);
     }
 

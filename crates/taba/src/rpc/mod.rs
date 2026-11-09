@@ -12,7 +12,7 @@ pub use self::router::{Error, Handler, Procedures, Router};
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::wire::{Frame, Kind, Message, SafeInteger};
+    pub use super::wire::{Frame, Kind, Message, Rejection, SafeInteger};
 }
 
 /// What the page can call or subscribe to.
