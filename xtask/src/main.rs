@@ -9,6 +9,7 @@ use clap::{Parser, Subcommand};
 
 mod mdbook;
 mod pnpm;
+mod rustdoc;
 
 #[derive(Parser)]
 enum Xtask {
@@ -102,14 +103,10 @@ fn lint() -> io::Result<()> {
     no_std.args(["check", "--package", "taba", "--target", "x86_64-unknown-none", "--locked"]);
     run(no_std)?;
 
-    let mut doc = Command::new("cargo");
-    doc.args(["doc", "--workspace", "--no-deps", "--all-features", "--locked"]);
-    doc.env("RUSTDOCFLAGS", "-D warnings");
-    run(doc)?;
-
     pnpm::run("lint", &[])?;
     pnpm::run("typecheck", &[])?;
-    mdbook::build()
+    mdbook::build()?;
+    rustdoc::build()
 }
 
 fn test() -> io::Result<()> {
