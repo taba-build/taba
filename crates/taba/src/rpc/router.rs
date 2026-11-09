@@ -7,8 +7,9 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::{any::type_name, fmt, future::ready, pin::Pin};
+use core::{any::type_name, fmt, future::ready};
 
+use futures_util::{FutureExt, Stream, StreamExt, stream};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::value::{RawValue, to_raw_value};
 use specta::{
@@ -16,7 +17,8 @@ use specta::{
     datatype::{DataType, Reference},
 };
 
-use super::{Procedure, wire::Kind};
+use self::sealed::Erased;
+use super::{Once, Output, Procedure, Strand, wire::Kind};
 
 /// Procedures, and the handlers an app attaches.
 ///
@@ -28,10 +30,11 @@ pub struct Procedures<S = ()> {
     state: S,
 }
 
+/// A name's declaration and handlers.
 #[derive(Debug, Default)]
 struct Pairing {
     declared: bool,
-    handlers: Vec<Call>,
+    handlers: Vec<Erased>,
 }
 
 impl Procedures {
@@ -65,36 +68,35 @@ impl<S> Procedures<S> {
         Procedures { names: self.names, unnamed: self.unnamed, state }
     }
 
-    /// Answers `P`'s calls with `handler`.
+    /// Answers `P` with `handler`.
     pub fn handle<H, Args, P>(self, handler: H) -> Self
     where
         H: Handler<Args, S, Request = P> + Send + Sync + 'static,
-        H::Future: Future<Output = Result<P::Output, P::Error>> + Send + 'static,
         P: DeserializeOwned + Procedure + Type,
-        P::Output: Serialize + 'static, // calls only, Strand isn't Serialize
-        P::Error: Serialize + 'static,
+        P::Output: Output,
+        H::Future: Answers<<P::Output as Output>::Shape, P::Error>,
         S: Clone + Send + Sync + 'static,
     {
         let state = self.state.clone();
         self.handle_with(state, handler)
     }
 
-    /// Answers `P`'s calls with `handler`, which gets its own `state`.
+    /// Answers `P` with `handler`, which gets its own `state`.
     pub fn handle_with<S2, H, Args, P>(mut self, state: S2, handler: H) -> Self
     where
         H: Handler<Args, S2, Request = P> + Send + Sync + 'static,
-        H::Future: Future<Output = Result<P::Output, P::Error>> + Send + 'static,
         P: DeserializeOwned + Procedure + Type,
-        P::Output: Serialize + 'static, // calls only, Strand isn't Serialize
-        P::Error: Serialize + 'static,
+        P::Output: Output,
+        H::Future: Answers<<P::Output as Output>::Shape, P::Error>,
         S2: Clone + Send + Sync + 'static,
     {
-        let call = Call(Box::new(move |request| match serde_json::from_str::<P>(request.get()) {
-            Ok(request) => Box::pin(Call::answer(handler.call(state.clone(), request))),
-            Err(error) => Box::pin(ready(Kind::invalid(error))),
-        }));
+        let parsed = move |request: &RawValue| match serde_json::from_str::<P>(request.get()) {
+            Ok(request) => Ok(handler.call(state.clone(), request)),
+            Err(error) => Err(Kind::invalid(error)),
+        };
+        let erased = H::Future::erase(parsed);
         match Self::name::<P>() {
-            Ok(name) => self.names.entry(name).or_default().handlers.push(call),
+            Ok(name) => self.names.entry(name).or_default().handlers.push(erased),
             Err(problem) => self.unnamed.push(problem),
         }
         self
@@ -107,11 +109,11 @@ impl<S> Procedures<S> {
     /// Every procedure and handler that don't pair up.
     pub fn build(self) -> Result<Router, Error> {
         let mut problems = self.unnamed;
-        let mut calls = BTreeMap::new();
+        let mut paired = BTreeMap::new();
         for (name, Pairing { declared, mut handlers }) in self.names {
-            let call = handlers.pop();
-            match (declared, call, handlers.len()) {
-                (true, Some(call), 0) => _ = calls.insert(name, call),
+            let handler = handlers.pop();
+            match (declared, handler, handlers.len()) {
+                (true, Some(handler), 0) => _ = paired.insert(name, handler),
                 (true, None, _) => problems.push(Problem::Missing(name)),
                 (true, Some(_), rest) => problems.push(Problem::Several(name, rest + 1)),
                 (false, _, _) => problems.push(Problem::Undeclared(name)),
@@ -120,7 +122,7 @@ impl<S> Procedures<S> {
         if !problems.is_empty() {
             return Err(Error(problems));
         }
-        Ok(Router { calls })
+        Ok(Router { handlers: paired })
     }
 
     /// `P`'s path, crate first, so two modules can share a type name.
@@ -134,7 +136,7 @@ impl<S> Procedures<S> {
     }
 }
 
-/// A function that answers a procedure's calls.
+/// A function that answers a procedure.
 pub trait Handler<Args, S> {
     /// The procedure it answers.
     type Request;
@@ -177,7 +179,7 @@ pub struct State<S>(pub S);
 /// Handlers, by procedure name.
 #[derive(Debug)]
 pub struct Router {
-    calls: BTreeMap<String, Call>,
+    handlers: BTreeMap<String, Erased>,
 }
 
 impl Router {
@@ -187,37 +189,100 @@ impl Router {
         name: &str,
         request: &RawValue,
     ) -> impl Future<Output = Kind> + Send + use<> {
-        match self.calls.get(name) {
-            Some(call) => (call.0)(request),
-            None => Box::pin(ready(Kind::unknown(name.to_string()))),
+        match self.handlers.get(name) {
+            Some(Erased::Call(call)) => call(request),
+            _ => ready(Kind::unknown(name.to_string())).boxed(),
+        }
+    }
+
+    /// Answers a subscription, a frame per item, until its handler's stream ends.
+    pub fn subscribe(
+        &self,
+        name: &str,
+        request: &RawValue,
+    ) -> impl Stream<Item = Kind> + Send + use<> {
+        match self.handlers.get(name) {
+            Some(Erased::Strand(strand)) => strand(request),
+            _ => stream::once(ready(Kind::unknown(name.to_string()))).boxed(),
         }
     }
 }
 
-/// A handler and its state, parsing its request first so its answer borrows nothing.
-struct Call(Box<dyn Fn(&RawValue) -> Answer + Send + Sync>);
+/// What a handler returns, answering a procedure whose output has the shape `O`.
+///
+/// A future answers [`Once`], and a stream answers [`Strand`]. Sitting on what the handler
+/// returns puts that type first in rustc's errors.
+///
+/// [Sealed](https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed).
+pub trait Answers<O, E>: Sized {
+    #[doc(hidden)]
+    fn erase(parsed: impl Fn(&RawValue) -> Result<Self, Kind> + Send + Sync + 'static) -> Erased;
+}
 
-type Answer = Pin<Box<dyn Future<Output = Kind> + Send>>;
-
-impl Call {
-    async fn answer<T, E, Fut>(future: Fut) -> Kind
-    where
-        T: Serialize,
-        E: Serialize,
-        Fut: Future<Output = Result<T, E>>,
-    {
-        let encoded = match future.await {
-            Ok(output) => to_raw_value(&output).map(Kind::Value),
-            Err(error) => to_raw_value(&error).map(Kind::Error),
-        };
-        encoded.unwrap_or_else(Kind::unencodable)
+impl<Fut, T, E> Answers<Once<T>, E> for Fut
+where
+    Fut: Future<Output = Result<T, E>> + Send + 'static,
+    T: Serialize + 'static,
+    E: Serialize + 'static,
+{
+    fn erase(parsed: impl Fn(&RawValue) -> Result<Fut, Kind> + Send + Sync + 'static) -> Erased {
+        Erased::Call(Box::new(move |request| match parsed(request) {
+            Ok(future) => future.map(answer).boxed(),
+            Err(reject) => ready(reject).boxed(),
+        }))
     }
 }
 
-impl fmt::Debug for Call {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Call").finish_non_exhaustive()
+impl<St, T, E> Answers<Strand<T>, E> for St
+where
+    St: Stream<Item = Result<T, E>> + Send + 'static,
+    T: Serialize + 'static,
+    E: Serialize + 'static,
+{
+    fn erase(parsed: impl Fn(&RawValue) -> Result<St, Kind> + Send + Sync + 'static) -> Erased {
+        Erased::Strand(Box::new(move |request| match parsed(request) {
+            Ok(stream) => stream.map(answer).boxed(),
+            Err(reject) => stream::once(ready(reject)).boxed(),
+        }))
     }
+}
+
+mod sealed {
+    //! [Seals] [`Answers`](super::Answers) through `erase`'s return type.
+    //!
+    //! [Seals]: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
+
+    use alloc::boxed::Box;
+    use core::fmt;
+
+    use futures_util::{future::BoxFuture, stream::BoxStream};
+    use serde_json::value::RawValue;
+
+    use crate::rpc::wire::Kind;
+
+    /// A handler and its state, ready for the router.
+    pub enum Erased {
+        Call(OnRequest<BoxFuture<'static, Kind>>),
+        Strand(OnRequest<BoxStream<'static, Kind>>),
+    }
+
+    /// Parses a request and starts its handler, so the answer borrows nothing.
+    type OnRequest<A> = Box<dyn Fn(&RawValue) -> A + Send + Sync>;
+
+    impl fmt::Debug for Erased {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("Erased").finish_non_exhaustive()
+        }
+    }
+}
+
+/// A handler's result as its frame, rejected when serde can't encode it.
+fn answer<T: Serialize, E: Serialize>(result: Result<T, E>) -> Kind {
+    let encoded = match result {
+        Ok(output) => to_raw_value(&output).map(Kind::Value),
+        Err(error) => to_raw_value(&error).map(Kind::Error),
+    };
+    encoded.unwrap_or_else(Kind::unencodable)
 }
 
 /// Failed to build a [`Router`].
@@ -254,14 +319,12 @@ impl fmt::Display for Problem {
 
 #[cfg(test)]
 mod tests {
-    use core::{
-        pin::pin,
-        task::{Context, Poll, Waker},
-    };
+    use alloc::vec::Vec;
 
+    use futures_util::{FutureExt, StreamExt};
     use serde_json::value::RawValue;
 
-    use self::idle_game::{Buy, Game, Sell, buy, hire, sell};
+    use self::idle_game::{Buy, Game, Ore, Sell, buy, hire, ore, sell};
     use super::Procedures;
 
     mod idle_game {
@@ -272,10 +335,11 @@ mod tests {
         use alloc::string::String;
         use std::vec;
 
+        use futures_util::{Stream, stream};
         use serde::{Deserialize, Serialize};
         use specta::Type;
 
-        use crate::rpc::{Never, Procedure, State};
+        use crate::rpc::{Never, Procedure, State, Strand};
 
         #[derive(Clone)]
         pub(super) struct Game {
@@ -332,12 +396,27 @@ mod tests {
         pub(super) async fn hire(_: Hire) -> Result<u32, Never> {
             Ok(1)
         }
+
+        #[derive(Deserialize, Type)]
+        pub(super) struct Ore;
+
+        impl Procedure for Ore {
+            type Output = Strand<u32>;
+            type Error = Never;
+        }
+
+        pub(super) fn ore(
+            State(game): State<Game>,
+            _: Ore,
+        ) -> impl Stream<Item = Result<u32, Never>> {
+            stream::iter([Ok(game.drills), Ok(game.drills * 2)])
+        }
     }
 
     #[test]
     fn every_answer_kind() {
-        let procedures = Procedures::new().declare::<Buy>().declare::<Sell>();
-        let procedures = procedures.with_state(Game { drills: 3 }).handle(buy);
+        let procedures = Procedures::new().declare::<Buy>().declare::<Sell>().declare::<Ore>();
+        let procedures = procedures.with_state(Game { drills: 3 }).handle(buy).handle(ore);
         let router = procedures.handle_with(Game { drills: 9 }, sell).build().unwrap();
         let calls = [
             ("taba::rpc::router::tests::idle_game::Buy", r#"{"generator":"drill"}"#),
@@ -345,10 +424,11 @@ mod tests {
             ("taba::rpc::router::tests::idle_game::Buy", r#"{"generatr":"drill"}"#),
             ("taba::rpc::router::tests::idle_game::Sell", "null"),
             ("taba::rpc::router::tests::idle_game::Hire", "null"),
+            ("taba::rpc::router::tests::idle_game::Ore", "null"),
         ];
         let answers = calls.map(|(name, request)| {
             let request = RawValue::from_string(request.into()).unwrap();
-            let answer = now(router.call(name, &request));
+            let answer = router.call(name, &request).now_or_never().unwrap();
             serde_json::to_string(&answer).unwrap()
         });
         insta::assert_snapshot!(answers.join("\n"), @r#"
@@ -357,6 +437,23 @@ mod tests {
         {"kind":"reject","value":{"kind":"invalid","value":"missing field `generator` at line 1 column 20"}}
         {"kind":"value","value":9}
         {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Hire"}}
+        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Ore"}}
+        "#);
+
+        let subscriptions = [
+            ("taba::rpc::router::tests::idle_game::Ore", "null"),
+            ("taba::rpc::router::tests::idle_game::Ore", "7"),
+            ("taba::rpc::router::tests::idle_game::Buy", r#"{"generator":"drill"}"#),
+        ];
+        let strands = subscriptions.map(|(name, request)| {
+            let request = RawValue::from_string(request.into()).unwrap();
+            let frames: Vec<_> = router.subscribe(name, &request).collect().now_or_never().unwrap();
+            serde_json::to_string(&frames).unwrap()
+        });
+        insta::assert_snapshot!(strands.join("\n"), @r#"
+        [{"kind":"value","value":3},{"kind":"value","value":6}]
+        [{"kind":"reject","value":{"kind":"invalid","value":"invalid type: integer `7`, expected unit struct Ore at line 1 column 1"}}]
+        [{"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Buy"}}]
         "#);
     }
 
@@ -371,13 +468,5 @@ mod tests {
         \ta handler for `taba::rpc::router::tests::idle_game::Hire`, which isn't declared
         \tno handler for `taba::rpc::router::tests::idle_game::Sell`
         ");
-    }
-
-    /// Polls once: these handlers never wait.
-    fn now<T>(future: impl Future<Output = T>) -> T {
-        let Poll::Ready(output) = pin!(future).poll(&mut Context::from_waker(Waker::noop())) else {
-            panic!("a handler waited");
-        };
-        output
     }
 }

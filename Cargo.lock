@@ -2572,6 +2572,7 @@ dependencies = [
 name = "taba"
 version = "0.0.0"
 dependencies = [
+ "futures-util",
  "insta",
  "serde",
  "serde_core",

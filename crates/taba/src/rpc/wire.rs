@@ -101,7 +101,7 @@ impl Kind {
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
 pub enum Rejection {
-    /// No procedure has this name.
+    /// No procedure by this name answers the request.
     Unknown(String),
     /// A request serde can't parse, and why.
     Invalid(String),
