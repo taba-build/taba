@@ -74,7 +74,7 @@ impl<S> Procedures<S> {
         H: Handler<Args, S, Request = P> + Send + Sync + 'static,
         P: DeserializeOwned + Procedure + Type,
         P::Output: Output,
-        H::Future: Answers<<P::Output as Output>::Shape, P::Error>,
+        H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S: Clone + Send + Sync + 'static,
     {
         let state = self.state.clone();
@@ -87,14 +87,14 @@ impl<S> Procedures<S> {
         H: Handler<Args, S2, Request = P> + Send + Sync + 'static,
         P: DeserializeOwned + Procedure + Type,
         P::Output: Output,
-        H::Future: Answers<<P::Output as Output>::Shape, P::Error>,
+        H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S2: Clone + Send + Sync + 'static,
     {
         let parsed = move |request: &RawValue| match serde_json::from_str::<P>(request.get()) {
             Ok(request) => Ok(handler.call(state.clone(), request)),
             Err(error) => Err(Kind::invalid(error)),
         };
-        let erased = H::Future::erase(parsed);
+        let erased = H::Response::erase(parsed);
         match Self::name::<P>() {
             Ok(name) => self.names.entry(name).or_default().handlers.push(erased),
             Err(problem) => self.unnamed.push(problem),
@@ -142,10 +142,10 @@ pub trait Handler<Args, S> {
     type Request;
 
     /// Its answer.
-    type Future;
+    type Response;
 
     /// Answers `request`, given the app's state.
-    fn call(&self, state: S, request: Self::Request) -> Self::Future;
+    fn call(&self, state: S, request: Self::Request) -> Self::Response;
 }
 
 impl<F, Fut, P, S> Handler<(P,), S> for F
@@ -153,7 +153,7 @@ where
     F: Fn(P) -> Fut,
 {
     type Request = P;
-    type Future = Fut;
+    type Response = Fut;
 
     fn call(&self, _: S, request: P) -> Fut {
         self(request)
@@ -165,7 +165,7 @@ where
     F: Fn(State<S>, P) -> Fut,
 {
     type Request = P;
-    type Future = Fut;
+    type Response = Fut;
 
     fn call(&self, state: S, request: P) -> Fut {
         self(State(state), request)
