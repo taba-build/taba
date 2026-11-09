@@ -1,0 +1,16 @@
+error[E0277]: the trait bound `fn(State<Shop>, Buy) -> impl Future<Output = Result<u32, Never>> {buy}: Handler<_, Game>` is not satisfied
+  --> tests/ui/handler_wrong_state.rs:26:47
+   |
+26 |     Procedures::new().with_state(Game).handle(buy);
+   |                                        ------ ^^^ the trait `Handler<_, Game>` is not implemented for fn item `fn(State<Shop>, Buy) -> impl Future<Output = Result<u32, Never>> {buy}`
+   |                                        |
+   |                                        required by a bound introduced by this call
+   |
+note: required by a bound in `Procedures::<S>::handle`
+  --> src/rpc/router.rs
+   |
+   |     pub fn handle<H, Args, P>(self, handler: H) -> Self
+   |            ------ required by a bound in this associated function
+   |     where
+   |         H: Handler<Args, S, Request = P> + Send + Sync + 'static,
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Procedures::<S>::handle`

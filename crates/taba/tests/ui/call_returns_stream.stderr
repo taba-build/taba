@@ -1,0 +1,17 @@
+error[E0277]: the trait bound `impl Stream<Item = Result<u32, Never>>: Answers<taba::rpc::Once<u32>, Never>` is not satisfied
+  --> tests/ui/call_returns_stream.rs:21:30
+   |
+21 |     Procedures::new().handle(buy);
+   |                       ------ ^^^ the trait `futures_util::Future` is not implemented for `impl Stream<Item = Result<u32, Never>>`
+   |                       |
+   |                       required by a bound introduced by this call
+   |
+   = note: required for `impl Stream<Item = Result<u32, Never>>` to implement `Answers<taba::rpc::Once<u32>, Never>`
+note: required by a bound in `Procedures::<S>::handle`
+  --> src/rpc/router.rs
+   |
+   |     pub fn handle<H, Args, P>(self, handler: H) -> Self
+   |            ------ required by a bound in this associated function
+...
+   |         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
+   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Procedures::<S>::handle`
