@@ -17,7 +17,7 @@ pub use crate::error::Error;
 /// Alias for a `Result` with the error type `taba::Error`.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-/// What generated code names through taba: a std crate has no `alloc` without `extern crate`.
+/// What generated code names through taba: a std crate has no `alloc` without [`extern crate`](https://doc.rust-lang.org/reference/names/preludes.html#extern-prelude).
 #[doc(hidden)]
 pub mod __private {
     pub use alloc::string::String;
