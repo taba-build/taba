@@ -1,0 +1,21 @@
+//! A strand's handler that returns a future.
+
+use serde::Deserialize;
+use specta::Type;
+use taba::rpc::{Never, Procedure, Procedures, Strand};
+
+#[derive(Deserialize, Type)]
+struct Ore;
+
+impl Procedure for Ore {
+    type Output = Strand<u32>;
+    type Error = Never;
+}
+
+async fn ore(_: Ore) -> Result<u32, Never> {
+    Ok(3)
+}
+
+fn main() {
+    Procedures::new().handle(ore);
+}
