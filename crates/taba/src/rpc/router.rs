@@ -18,11 +18,14 @@ use specta::{
 
 use super::{Procedure, wire::Kind};
 
-/// Procedures and their handlers.
-#[derive(Debug, Default)]
-pub struct Procedures {
+/// Procedures, and the handlers an app attaches.
+///
+/// `S` is the state the next handlers get, `()` until [`with_state`](Self::with_state) is called.
+#[derive(Debug)]
+pub struct Procedures<S = ()> {
     names: BTreeMap<String, Pairing>,
     unnamed: Vec<Problem>,
+    state: S,
 }
 
 #[derive(Debug, Default)]
@@ -36,7 +39,15 @@ impl Procedures {
     pub fn new() -> Self {
         Self::default()
     }
+}
 
+impl Default for Procedures {
+    fn default() -> Self {
+        Self { names: BTreeMap::new(), unnamed: Vec::new(), state: () }
+    }
+}
+
+impl<S> Procedures<S> {
     /// Adds `P`.
     pub fn declare<P>(mut self) -> Self
     where
@@ -49,17 +60,41 @@ impl Procedures {
         self
     }
 
+    /// Gives the next handlers `state`.
+    pub fn with_state<S2>(self, state: S2) -> Procedures<S2> {
+        Procedures { names: self.names, unnamed: self.unnamed, state }
+    }
+
     /// Answers `P`'s calls with `handler`.
-    pub fn handle<P, H>(mut self, handler: H) -> Self
+    pub fn handle<H, Args, P>(self, handler: H) -> Self
     where
+        H: Handler<Args, S, Request = P> + Send + Sync + 'static,
+        H::Future: Future<Output = Result<P::Output, P::Error>> + Send + 'static,
         P: DeserializeOwned + Procedure + Type,
         P::Output: Serialize + 'static, // calls only, Strand isn't Serialize
         P::Error: Serialize + 'static,
-        H: Handler<P> + Send + Sync + 'static,
-        H::Future: Future<Output = Result<P::Output, P::Error>> + Send + 'static,
+        S: Clone + Send + Sync + 'static,
     {
+        let state = self.state.clone();
+        self.handle_with(state, handler)
+    }
+
+    /// Answers `P`'s calls with `handler`, which gets its own `state`.
+    pub fn handle_with<S2, H, Args, P>(mut self, state: S2, handler: H) -> Self
+    where
+        H: Handler<Args, S2, Request = P> + Send + Sync + 'static,
+        H::Future: Future<Output = Result<P::Output, P::Error>> + Send + 'static,
+        P: DeserializeOwned + Procedure + Type,
+        P::Output: Serialize + 'static, // calls only, Strand isn't Serialize
+        P::Error: Serialize + 'static,
+        S2: Clone + Send + Sync + 'static,
+    {
+        let call = Call(Box::new(move |request| match serde_json::from_str::<P>(request.get()) {
+            Ok(request) => Box::pin(Call::answer(handler.call(state.clone(), request))),
+            Err(error) => Box::pin(ready(Kind::invalid(error))),
+        }));
         match Self::name::<P>() {
-            Ok(name) => self.names.entry(name).or_default().handlers.push(Call::new(handler)),
+            Ok(name) => self.names.entry(name).or_default().handlers.push(call),
             Err(problem) => self.unnamed.push(problem),
         }
         self
@@ -99,25 +134,45 @@ impl Procedures {
     }
 }
 
-/// A function that answers `P`'s calls.
-pub trait Handler<P> {
+/// A function that answers a procedure's calls.
+pub trait Handler<Args, S> {
+    /// The procedure it answers.
+    type Request;
+
     /// Its answer.
     type Future;
 
-    /// Answers `request`.
-    fn call(&self, request: P) -> Self::Future;
+    /// Answers `request`, given the app's state.
+    fn call(&self, state: S, request: Self::Request) -> Self::Future;
 }
 
-impl<P, F, Fut> Handler<P> for F
+impl<F, Fut, P, S> Handler<(P,), S> for F
 where
     F: Fn(P) -> Fut,
 {
+    type Request = P;
     type Future = Fut;
 
-    fn call(&self, request: P) -> Fut {
+    fn call(&self, _: S, request: P) -> Fut {
         self(request)
     }
 }
+
+impl<F, Fut, S, P> Handler<(State<S>, P), S> for F
+where
+    F: Fn(State<S>, P) -> Fut,
+{
+    type Request = P;
+    type Future = Fut;
+
+    fn call(&self, state: S, request: P) -> Fut {
+        self(State(state), request)
+    }
+}
+
+/// The app's state, as a handler's argument.
+#[derive(Debug)]
+pub struct State<S>(pub S);
 
 /// Handlers, by procedure name.
 #[derive(Debug)]
@@ -139,26 +194,12 @@ impl Router {
     }
 }
 
-/// A handler that parses its request first, so its answer borrows nothing.
+/// A handler and its state, parsing its request first so its answer borrows nothing.
 struct Call(Box<dyn Fn(&RawValue) -> Answer + Send + Sync>);
 
 type Answer = Pin<Box<dyn Future<Output = Kind> + Send>>;
 
 impl Call {
-    fn new<P, H>(handler: H) -> Self
-    where
-        P: DeserializeOwned + Procedure,
-        P::Output: Serialize + 'static,
-        P::Error: Serialize + 'static,
-        H: Handler<P> + Send + Sync + 'static,
-        H::Future: Future<Output = Result<P::Output, P::Error>> + Send + 'static,
-    {
-        Self(Box::new(move |request| match serde_json::from_str::<P>(request.get()) {
-            Ok(request) => Box::pin(Self::answer(handler.call(request))),
-            Err(error) => Box::pin(ready(Kind::invalid(error))),
-        }))
-    }
-
     async fn answer<T, E, Fut>(future: Fut) -> Kind
     where
         T: Serialize,
@@ -220,7 +261,7 @@ mod tests {
 
     use serde_json::value::RawValue;
 
-    use self::idle_game::{Buy, Sell, buy, hire};
+    use self::idle_game::{Buy, Game, Sell, buy, hire, sell};
     use super::Procedures;
 
     mod idle_game {
@@ -234,7 +275,12 @@ mod tests {
         use serde::{Deserialize, Serialize};
         use specta::Type;
 
-        use crate::rpc::{Never, Procedure};
+        use crate::rpc::{Never, Procedure, State};
+
+        #[derive(Clone)]
+        pub(super) struct Game {
+            pub(super) drills: u32,
+        }
 
         #[derive(Deserialize, Type)]
         pub(super) struct Buy {
@@ -252,9 +298,12 @@ mod tests {
             type Error = BuyError;
         }
 
-        pub(super) async fn buy(Buy { generator }: Buy) -> Result<u32, BuyError> {
+        pub(super) async fn buy(
+            State(game): State<Game>,
+            Buy { generator }: Buy,
+        ) -> Result<u32, BuyError> {
             match generator.as_str() {
-                "drill" => Ok(4),
+                "drill" => Ok(game.drills + 1),
                 "furnace" => Err(BuyError::CantAfford { missing: 30 }),
                 _ => Err(BuyError::Locked),
             }
@@ -266,6 +315,10 @@ mod tests {
         impl Procedure for Sell {
             type Output = u32;
             type Error = Never;
+        }
+
+        pub(super) async fn sell(State(game): State<Game>, _: Sell) -> Result<u32, Never> {
+            Ok(game.drills)
         }
 
         #[derive(Deserialize, Type)]
@@ -283,12 +336,15 @@ mod tests {
 
     #[test]
     fn every_answer_kind() {
-        let router = Procedures::new().declare::<Buy>().handle(buy).build().unwrap();
+        let procedures = Procedures::new().declare::<Buy>().declare::<Sell>();
+        let procedures = procedures.with_state(Game { drills: 3 }).handle(buy);
+        let router = procedures.handle_with(Game { drills: 9 }, sell).build().unwrap();
         let calls = [
             ("taba::rpc::router::tests::idle_game::Buy", r#"{"generator":"drill"}"#),
             ("taba::rpc::router::tests::idle_game::Buy", r#"{"generator":"furnace"}"#),
             ("taba::rpc::router::tests::idle_game::Buy", r#"{"generatr":"drill"}"#),
             ("taba::rpc::router::tests::idle_game::Sell", "null"),
+            ("taba::rpc::router::tests::idle_game::Hire", "null"),
         ];
         let answers = calls.map(|(name, request)| {
             let request = RawValue::from_string(request.into()).unwrap();
@@ -299,14 +355,16 @@ mod tests {
         {"kind":"value","value":4}
         {"kind":"error","value":{"CantAfford":{"missing":30}}}
         {"kind":"reject","value":{"kind":"invalid","value":"missing field `generator` at line 1 column 20"}}
-        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Sell"}}
+        {"kind":"value","value":9}
+        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Hire"}}
         "#);
     }
 
     #[test]
     fn every_build_problem() {
         let procedures = Procedures::new().declare::<Buy>().declare::<Sell>();
-        let error = procedures.handle(buy).handle(buy).handle(hire).build().unwrap_err();
+        let handlers = procedures.with_state(Game { drills: 3 });
+        let error = handlers.handle(buy).handle(buy).handle(hire).build().unwrap_err();
         insta::assert_snapshot!(error, @"
         can't build the router:
         \t2 handlers for `taba::rpc::router::tests::idle_game::Buy`

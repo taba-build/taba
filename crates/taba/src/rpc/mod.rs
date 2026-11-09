@@ -8,7 +8,7 @@ use core::{convert::Infallible, marker::PhantomData};
 use serde::{Serialize, Serializer};
 use specta::{Type, Types, datatype::DataType};
 
-pub use self::router::{Error, Handler, Procedures, Router};
+pub use self::router::{Error, Handler, Procedures, Router, State};
 
 #[doc(hidden)]
 pub mod __private {
