@@ -6,14 +6,14 @@ default-members = ["crates/*"]
 [workspace.dependencies]
 futures-util = { version = "0.3.34", default-features = false }
 insta = "1.49.0"
-serde = { version = "1", default-features = false }
-serde_core = { version = "1", default-features = false }
-serde_json = { version = "1", default-features = false }
+serde = { version = "1.0.229", default-features = false }
+serde_core = { version = "1.0.229", default-features = false }
+serde_json = { version = "1.0.154", default-features = false }
 specta = "=2.0.0-rc.27"
 specta-typescript = "=0.0.14"
-taba-rolldown = { path = "crates/taba-rolldown", version = "0.0.0" }
+taba-rolldown = { version = "0.0.0", path = "crates/taba-rolldown" }
 tokio = { version = "1.53.3", features = ["rt"] }
-trybuild = "1"
+trybuild = "1.0.122"
 
 [workspace.lints.rust]
 missing_debug_implementations = "warn"
