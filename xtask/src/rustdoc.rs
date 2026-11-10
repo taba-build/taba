@@ -27,8 +27,15 @@ fn doc(dir: &str, args: &[&str]) -> io::Result<()> {
     crate::run(clean)?;
 
     let mut doc = Command::new("cargo");
+    doc.arg(crate::MSRV_NIGHTLY);
     doc.args(["doc", "--no-deps", "--all-features", "--locked"]).args(args);
-    doc.env("RUSTDOCFLAGS", "-D warnings");
+    let flags = [
+        "-D warnings",
+        "-Z unstable-options",
+        "--enable-index-page",                        // unstable
+        "--default-setting preferred-dark-theme=ayu", // same as the book
+    ];
+    doc.env("RUSTDOCFLAGS", flags.join(" "));
     doc.current_dir(WORKSPACE); // no package flag means the default members only here
     crate::run(doc)?;
 

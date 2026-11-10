@@ -11,6 +11,9 @@ mod mdbook;
 mod pnpm;
 mod rustdoc;
 
+/// Our MSRV's nightly, for nightly-only rustfmt and rustdoc settings.
+const MSRV_NIGHTLY: &str = "+nightly-2026-02-28";
+
 #[derive(Parser)]
 enum Xtask {
     /// Run all formatters, or check them.
@@ -73,7 +76,7 @@ fn run(mut command: Command) -> io::Result<()> {
 
 fn fmt(check: bool) -> io::Result<()> {
     let mut rustfmt = Command::new("cargo");
-    rustfmt.arg("+nightly-2026-02-28"); // our MSRV's nightly, for nightly-only rustfmt settings
+    rustfmt.arg(MSRV_NIGHTLY);
     rustfmt.args(["fmt", "--all"]); // otherwise only the current dir's crate
     let mut oxfmt = vec![];
     if check {
