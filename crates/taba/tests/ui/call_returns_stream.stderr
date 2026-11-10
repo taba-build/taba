@@ -10,8 +10,9 @@ error[E0277]: the trait bound `impl Stream<Item = Result<u32, Never>>: Answers<t
 note: required by a bound in `Procedures::<S>::handle`
   --> src/rpc/router.rs
    |
+   | impl<S> Procedures<S> {
+...
    |     pub fn handle<H, Args, P>(self, handler: H) -> Self
-   |            ------ required by a bound in this associated function
 ...
    |         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Procedures::<S>::handle`

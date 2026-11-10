@@ -6,6 +6,7 @@ default-members = ["crates/*"]
 [workspace.dependencies]
 futures-util = { version = "0.3.34", default-features = false }
 insta = "1.49.0"
+rustversion = "1.0.23"
 serde = { version = "1.0.229", default-features = false }
 serde_core = { version = "1.0.229", default-features = false }
 serde_json = { version = "1.0.154", default-features = false }

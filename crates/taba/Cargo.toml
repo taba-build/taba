@@ -28,6 +28,7 @@ specta-typescript = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta.workspace = true
+rustversion.workspace = true
 specta = { workspace = true, features = ["derive"] }
 trybuild.workspace = true
 
