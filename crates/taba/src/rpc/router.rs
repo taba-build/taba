@@ -107,7 +107,7 @@ impl<S> Procedures<S> {
     /// # Errors
     ///
     /// Every procedure and handler that don't pair up.
-    pub fn build(self) -> Result<Router, Error> {
+    pub fn build(self) -> Result<Router, BuildError> {
         let mut problems = self.unnamed;
         let mut paired = BTreeMap::new();
         for (name, Pairing { declared, mut handlers }) in self.names {
@@ -120,7 +120,7 @@ impl<S> Procedures<S> {
             }
         }
         if !problems.is_empty() {
-            return Err(Error(problems));
+            return Err(BuildError(problems));
         }
         Ok(Router { handlers: paired })
     }
@@ -287,16 +287,16 @@ fn answer<T: Serialize, E: Serialize>(result: Result<T, E>) -> Kind {
 
 /// Failed to build a [`Router`].
 #[derive(Debug)]
-pub struct Error(Vec<Problem>);
+pub struct BuildError(Vec<Problem>);
 
-impl fmt::Display for Error {
+impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("can't build the router:")?;
         self.0.iter().try_for_each(|problem| write!(f, "\n\t{problem}"))
     }
 }
 
-impl core::error::Error for Error {}
+impl core::error::Error for BuildError {}
 
 #[derive(Debug)]
 enum Problem {
