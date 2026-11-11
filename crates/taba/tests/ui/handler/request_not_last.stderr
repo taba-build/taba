@@ -1,5 +1,5 @@
 error[E0277]: the trait bound `fn(Buy, State<Game>) -> impl Future<Output = Result<u32, Never>> {buy}: Handler<_, Game>` is not satisfied
-  --> tests/ui/handler_request_not_last.rs:23:47
+  --> tests/ui/handler/request_not_last.rs:23:47
    |
 23 |     Procedures::new().with_state(Game).handle(buy);
    |                                        ------ ^^^ the trait `Handler<_, Game>` is not implemented for fn item `fn(Buy, State<Game>) -> impl Future<Output = Result<u32, Never>> {buy}`

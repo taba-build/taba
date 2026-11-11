@@ -1,5 +1,5 @@
 error[E0271]: type mismatch resolving `<impl Stream<Item = Result<String, Never>> as Stream>::Item == Result<u32, Never>`
-  --> tests/ui/strand_wrong_item.rs:21:30
+  --> tests/ui/strand/wrong_item.rs:21:30
    |
 21 |     Procedures::new().handle(ore);
    |                       ------ ^^^ expected `Result<u32, Never>`, found `Result<String, Never>`

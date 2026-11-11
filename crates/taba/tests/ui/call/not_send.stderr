@@ -1,12 +1,12 @@
 error: future cannot be sent between threads safely
-  --> tests/ui/call_not_send.rs:24:30
+  --> tests/ui/call/not_send.rs:24:30
    |
 24 |     Procedures::new().handle(buy);
    |                              ^^^ future returned by `buy` is not `Send`
    |
    = help: within `impl Future<Output = Result<u32, Never>>`, the trait `Send` is not implemented for `Rc<u32>`
 note: future is not `Send` as this value is used across an await
-  --> tests/ui/call_not_send.rs:19:29
+  --> tests/ui/call/not_send.rs:19:29
    |
 18 |     let drills = Rc::new(1);
    |         ------ has type `Rc<u32>` which is not `Send`

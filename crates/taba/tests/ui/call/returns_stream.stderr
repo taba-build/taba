@@ -1,14 +1,12 @@
-error[E0271]: type mismatch resolving `<impl Stream<Item = u32> as Stream>::Item == Result<u32, Never>`
-  --> tests/ui/strand_without_result.rs:21:30
+error[E0277]: the trait bound `impl Stream<Item = Result<u32, Never>>: Answers<taba::rpc::Once<u32>, Never>` is not satisfied
+  --> tests/ui/call/returns_stream.rs:21:30
    |
-21 |     Procedures::new().handle(ore);
-   |                       ------ ^^^ expected `Result<u32, Never>`, found `u32`
+21 |     Procedures::new().handle(buy);
+   |                       ------ ^^^ the trait `futures_util::Future` is not implemented for `impl Stream<Item = Result<u32, Never>>`
    |                       |
    |                       required by a bound introduced by this call
    |
-   = note: expected enum `Result<u32, Never>`
-              found type `u32`
-   = note: required for `impl Stream<Item = u32>` to implement `Answers<Strand<u32>, Never>`
+   = note: required for `impl Stream<Item = Result<u32, Never>>` to implement `Answers<taba::rpc::Once<u32>, Never>`
 note: required by a bound in `Procedures::<S>::handle`
   --> src/rpc/router.rs
    |
