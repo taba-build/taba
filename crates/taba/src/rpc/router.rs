@@ -319,112 +319,36 @@ impl fmt::Display for Problem {
 
 #[cfg(test)]
 mod tests {
-    use alloc::vec::Vec;
+    use std::{future::ready, prelude::rust_2024::*};
 
-    use futures_util::{FutureExt, StreamExt};
+    use futures_util::{FutureExt, StreamExt, stream};
     use serde_json::value::RawValue;
 
-    use self::idle_game::{Buy, Game, Ore, Sell, buy, hire, ore, sell};
-    use super::Procedures;
-
-    mod idle_game {
-        //! Example application for testing.
-        // used by specta's derives, root crate is no_std
-        extern crate std;
-
-        use alloc::string::String;
-        use std::vec;
-
-        use futures_util::{Stream, stream};
-        use serde::{Deserialize, Serialize};
-        use specta::Type;
-
-        use crate::rpc::{Never, Procedure, State, Strand};
-
-        #[derive(Clone)]
-        pub(super) struct Game {
-            pub(super) drills: u32,
-        }
-
-        #[derive(Deserialize, Type)]
-        pub(super) struct Buy {
-            generator: String,
-        }
-
-        #[derive(Serialize, Type)]
-        pub(super) enum BuyError {
-            CantAfford { missing: u32 },
-            Locked,
-        }
-
-        impl Procedure for Buy {
-            type Output = u32;
-            type Error = BuyError;
-        }
-
-        pub(super) async fn buy(
-            State(game): State<Game>,
-            Buy { generator }: Buy,
-        ) -> Result<u32, BuyError> {
-            match generator.as_str() {
-                "drill" => Ok(game.drills + 1),
-                "furnace" => Err(BuyError::CantAfford { missing: 30 }),
-                _ => Err(BuyError::Locked),
-            }
-        }
-
-        #[derive(Deserialize, Type)]
-        pub(super) struct Sell;
-
-        impl Procedure for Sell {
-            type Output = u32;
-            type Error = Never;
-        }
-
-        pub(super) async fn sell(State(game): State<Game>, _: Sell) -> Result<u32, Never> {
-            Ok(game.drills)
-        }
-
-        #[derive(Deserialize, Type)]
-        pub(super) struct Hire;
-
-        impl Procedure for Hire {
-            type Output = u32;
-            type Error = Never;
-        }
-
-        pub(super) async fn hire(_: Hire) -> Result<u32, Never> {
-            Ok(1)
-        }
-
-        #[derive(Deserialize, Type)]
-        pub(super) struct Ore;
-
-        impl Procedure for Ore {
-            type Output = Strand<u32>;
-            type Error = Never;
-        }
-
-        pub(super) fn ore(
-            State(game): State<Game>,
-            _: Ore,
-        ) -> impl Stream<Item = Result<u32, Never>> {
-            stream::iter([Ok(game.drills), Ok(game.drills * 2)])
-        }
-    }
+    use super::{Procedures, State};
+    use crate::rpc::tests::{Buy, BuyError, Game, Generator, Hire, Ore, Sell};
 
     #[test]
     fn every_answer_kind() {
+        async fn buy(State(game): State<Game>, Buy { generator }: Buy) -> Result<u32, BuyError> {
+            match generator {
+                Generator::Drill => Ok(game.drills),
+                Generator::Furnace => Err(BuyError::CantAfford { missing: 30 }),
+            }
+        }
+
+        let sell = |State(game): State<Game>, _: Sell| ready(Ok(game.drills));
+        let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
+
         let procedures = Procedures::new().declare::<Buy>().declare::<Sell>().declare::<Ore>();
         let procedures = procedures.with_state(Game { drills: 3 }).handle(buy).handle(ore);
         let router = procedures.handle_with(Game { drills: 9 }, sell).build().unwrap();
         let calls = [
-            ("taba::rpc::router::tests::idle_game::Buy", r#"{"generator":"drill"}"#),
-            ("taba::rpc::router::tests::idle_game::Buy", r#"{"generator":"furnace"}"#),
-            ("taba::rpc::router::tests::idle_game::Buy", r#"{"generatr":"drill"}"#),
-            ("taba::rpc::router::tests::idle_game::Sell", "null"),
-            ("taba::rpc::router::tests::idle_game::Hire", "null"),
-            ("taba::rpc::router::tests::idle_game::Ore", "null"),
+            ("taba::rpc::tests::Buy", r#"{"generator":"Drill"}"#),
+            ("taba::rpc::tests::Buy", r#"{"generator":"Furnace"}"#),
+            ("taba::rpc::tests::Buy", r#"{"generatr":"Drill"}"#),
+            ("taba::rpc::tests::Sell", "null"),
+            ("taba::rpc::tests::Hire", "null"),
+            ("taba::rpc::tests::Ore", "null"),
         ];
         let answers = calls.map(|(name, request)| {
             let request = RawValue::from_string(request.into()).unwrap();
@@ -432,18 +356,18 @@ mod tests {
             serde_json::to_string(&answer).unwrap()
         });
         insta::assert_snapshot!(answers.join("\n"), @r#"
-        {"kind":"value","value":4}
+        {"kind":"value","value":3}
         {"kind":"error","value":{"CantAfford":{"missing":30}}}
         {"kind":"reject","value":{"kind":"invalid","value":"missing field `generator` at line 1 column 20"}}
         {"kind":"value","value":9}
-        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Hire"}}
-        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Ore"}}
+        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::tests::Hire"}}
+        {"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::tests::Ore"}}
         "#);
 
         let subscriptions = [
-            ("taba::rpc::router::tests::idle_game::Ore", "null"),
-            ("taba::rpc::router::tests::idle_game::Ore", "7"),
-            ("taba::rpc::router::tests::idle_game::Buy", r#"{"generator":"drill"}"#),
+            ("taba::rpc::tests::Ore", "null"),
+            ("taba::rpc::tests::Ore", "7"),
+            ("taba::rpc::tests::Buy", r#"{"generator":"Drill"}"#),
         ];
         let strands = subscriptions.map(|(name, request)| {
             let request = RawValue::from_string(request.into()).unwrap();
@@ -453,20 +377,27 @@ mod tests {
         insta::assert_snapshot!(strands.join("\n"), @r#"
         [{"kind":"value","value":3},{"kind":"value","value":6}]
         [{"kind":"reject","value":{"kind":"invalid","value":"invalid type: integer `7`, expected unit struct Ore at line 1 column 1"}}]
-        [{"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::router::tests::idle_game::Buy"}}]
+        [{"kind":"reject","value":{"kind":"unknown","value":"taba::rpc::tests::Buy"}}]
         "#);
     }
 
     #[test]
     fn every_build_problem() {
+        async fn buy(_: Buy) -> Result<u32, BuyError> {
+            Ok(0)
+        }
+
+        // a second handler for `Buy` clashes, whatever kind of handler it is
+        let also_buy = |_: Buy| ready(Ok(0));
+        let undeclared = |_: Hire| ready(Ok(0));
+
         let procedures = Procedures::new().declare::<Buy>().declare::<Sell>();
-        let handlers = procedures.with_state(Game { drills: 3 });
-        let error = handlers.handle(buy).handle(buy).handle(hire).build().unwrap_err();
+        let error = procedures.handle(buy).handle(also_buy).handle(undeclared).build().unwrap_err();
         insta::assert_snapshot!(error, @"
         can't build the router:
-        \t2 handlers for `taba::rpc::router::tests::idle_game::Buy`
-        \ta handler for `taba::rpc::router::tests::idle_game::Hire`, which isn't declared
-        \tno handler for `taba::rpc::router::tests::idle_game::Sell`
+        \t2 handlers for `taba::rpc::tests::Buy`
+        \ta handler for `taba::rpc::tests::Hire`, which isn't declared
+        \tno handler for `taba::rpc::tests::Sell`
         ");
     }
 }

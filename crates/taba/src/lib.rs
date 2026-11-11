@@ -2,6 +2,8 @@
 #![no_std]
 
 extern crate alloc;
+#[cfg(feature = "rpc")]
+extern crate std;
 
 mod error;
 #[cfg(feature = "rpc")]

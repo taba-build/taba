@@ -1,6 +1,8 @@
 //! Taba's RPC
 
 mod router;
+#[cfg(test)]
+mod tests;
 mod wire;
 
 use core::{convert::Infallible, marker::PhantomData};
