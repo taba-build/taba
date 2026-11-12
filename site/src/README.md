@@ -1,6 +1,7 @@
 # Taba
 
-Taba is a [Rolldown]-based TypeScript bundler **for** Rust: Rust types flow into TypeScript and scripts come back as typed Rust functions.
+Taba is a [Rolldown]-based TypeScript bundler **for** Rust: Rust types flow into TypeScript and
+scripts come back as typed Rust functions.
 
 ## Crates
 
