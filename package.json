@@ -4,8 +4,7 @@
     "fmt": "oxfmt",
     "lint": "oxlint --deny-warnings",
     "typecheck": "pnpm -r run typecheck",
-    "build": "pnpm -r run build",
-    "test": "pnpm --filter xtask run test"
+    "build": "pnpm -r run build"
   },
   "devDependencies": {
     "oxfmt": "^0.78.0",

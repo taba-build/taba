@@ -4,8 +4,7 @@
   "type": "module",
   "scripts": {
     "rolldown": "node src/rolldown.ts",
-    "typecheck": "tsc",
-    "test": "node --test \"src/**/*.test.ts\""
+    "typecheck": "tsc"
   },
   "devDependencies": {
     "@types/node": "^26.6.6"
