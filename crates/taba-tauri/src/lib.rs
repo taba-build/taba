@@ -14,6 +14,9 @@ use tauri::{
 ///
 /// This overwrites any previous `invoke_handler`, so all previous commands reject as not found.
 /// If you want those commands handled, pass them to [`WithTaba::with_fallback`] instead.
+///
+/// Making one takes Tauri's async runtime, so an app that sets its own with
+/// [`tauri::async_runtime::set`] has to do so first.
 pub struct WithTaba<R: Runtime>(Builder<R>);
 
 impl<R: Runtime> WithTaba<R> {
