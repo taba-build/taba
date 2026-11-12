@@ -132,7 +132,8 @@ fn bytes(body: &InvokeBody) -> Result<Cow<'_, [u8]>, InvokeError> {
 
 #[cfg(test)]
 mod tests {
-    use taba::rpc::{Procedures, Router};
+    use serde_json::{Value, json};
+    use taba::rpc::{Procedures, Router, SessionId};
     use tauri::{
         App, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
         http::HeaderMap,
@@ -180,23 +181,29 @@ mod tests {
                 Err(error) => format!("rejected: {error}"),
             }
         }
+
+        fn connect(&self) -> SessionId {
+            serde_json::from_str(&self.invoke("taba::connect", InvokeBody::default())).unwrap()
+        }
+
+        /// Sends `batch` as `id`'s session, as raw bytes.
+        fn send(&self, id: SessionId, batch: Value) -> String {
+            let body = serde_json::to_vec(&json!([id, batch])).unwrap();
+            self.invoke("taba::send", InvokeBody::Raw(body))
+        }
     }
 
     fn router() -> Router {
         Procedures::new().build().unwrap()
     }
 
-    fn raw(text: &str) -> InvokeBody {
-        InvokeBody::Raw(text.as_bytes().to_vec())
-    }
-
     #[test]
     fn a_second_connect_ends_the_first() {
         let mock = Mock::new(mock_builder().taba(router()));
         let main = mock.webview("main");
-        let first = main.invoke("taba::connect", InvokeBody::default());
-        let second = main.invoke("taba::connect", InvokeBody::default());
-        let sends = [first, second].map(|id| main.invoke("taba::send", raw(&format!("[{id},[]]"))));
+        let first = main.connect();
+        let second = main.connect();
+        let sends = [first, second].map(|id| main.send(id, json!([])));
         insta::assert_snapshot!(sends.join("\n"), @r#"
         rejected: "this session has ended"
         null
@@ -208,10 +215,10 @@ mod tests {
         let mock = Mock::new(mock_builder().taba(router()));
         let main = mock.webview("main");
         let second = mock.webview("second");
-        let id = main.invoke("taba::connect", InvokeBody::default());
-        second.invoke("taba::connect", InvokeBody::default());
-        let send = |webview: &Webview| webview.invoke("taba::send", raw(&format!("[{id},[]]")));
-        insta::assert_snapshot!([send(&main), send(&second)].join("\n"), @r#"
+        let id = main.connect();
+        second.connect();
+        let sends = [main.send(id, json!([])), second.send(id, json!([]))];
+        insta::assert_snapshot!(sends.join("\n"), @r#"
         null
         rejected: "this session has ended"
         "#);
@@ -221,8 +228,8 @@ mod tests {
     fn a_json_body_reads_as_bytes() {
         let mock = Mock::new(mock_builder().taba(router()));
         let main = mock.webview("main");
-        let id = main.invoke("taba::connect", InvokeBody::default());
-        let numbers = serde_json::Value::from(format!("[{id},[]]").into_bytes());
+        let id = main.connect();
+        let numbers = Value::from(serde_json::to_vec(&json!([id, []])).unwrap());
         insta::assert_snapshot!(main.invoke("taba::send", InvokeBody::Json(numbers)), @"null");
     }
 
