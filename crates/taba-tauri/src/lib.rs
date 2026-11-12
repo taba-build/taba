@@ -129,3 +129,121 @@ fn bytes(body: &InvokeBody) -> Result<Cow<'_, [u8]>, InvokeError> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use taba::rpc::{Procedures, Router};
+    use tauri::{
+        App, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+        http::HeaderMap,
+        ipc::{CallbackFn, Invoke, InvokeBody, InvokeResponseBody},
+        test::{
+            INVOKE_KEY, MockRuntime, get_ipc_response, mock_builder, mock_context, noop_assets,
+        },
+        webview::InvokeRequest,
+    };
+
+    use super::{BuilderExt, WithTaba};
+
+    /// A Tauri app on Tauri's mock runtime.
+    struct Mock(App<MockRuntime>);
+
+    impl Mock {
+        fn new(with_taba: WithTaba<MockRuntime>) -> Self {
+            Self(with_taba.build(mock_context(noop_assets())).unwrap())
+        }
+
+        fn webview(&self, label: &str) -> Webview {
+            let builder = WebviewWindowBuilder::new(&self.0, label, WebviewUrl::default());
+            Webview(builder.build().unwrap())
+        }
+    }
+
+    /// One webview of a [`Mock`].
+    struct Webview(WebviewWindow<MockRuntime>);
+
+    impl Webview {
+        /// Invokes `command` from the webview's URL, which Tauri treats as local.
+        fn invoke(&self, command: &str, body: InvokeBody) -> String {
+            let request = InvokeRequest {
+                cmd: command.to_owned(),
+                callback: CallbackFn(0),
+                error: CallbackFn(1),
+                url: self.0.url().unwrap(),
+                body,
+                headers: HeaderMap::new(),
+                invoke_key: INVOKE_KEY.to_owned(),
+            };
+            match get_ipc_response(&self.0, request) {
+                Ok(InvokeResponseBody::Json(json)) => json,
+                Ok(InvokeResponseBody::Raw(raw)) => String::from_utf8(raw).unwrap(),
+                Err(error) => format!("rejected: {error}"),
+            }
+        }
+    }
+
+    fn router() -> Router {
+        Procedures::new().build().unwrap()
+    }
+
+    fn raw(text: &str) -> InvokeBody {
+        InvokeBody::Raw(text.as_bytes().to_vec())
+    }
+
+    #[test]
+    fn a_second_connect_ends_the_first() {
+        let mock = Mock::new(mock_builder().taba(router()));
+        let main = mock.webview("main");
+        let first = main.invoke("taba::connect", InvokeBody::default());
+        let second = main.invoke("taba::connect", InvokeBody::default());
+        let sends = [first, second].map(|id| main.invoke("taba::send", raw(&format!("[{id},[]]"))));
+        insta::assert_snapshot!(sends.join("\n"), @r#"
+        rejected: "this session has ended"
+        null
+        "#);
+    }
+
+    #[test]
+    fn each_webview_has_its_own_sessions() {
+        let mock = Mock::new(mock_builder().taba(router()));
+        let main = mock.webview("main");
+        let second = mock.webview("second");
+        let id = main.invoke("taba::connect", InvokeBody::default());
+        second.invoke("taba::connect", InvokeBody::default());
+        let send = |webview: &Webview| webview.invoke("taba::send", raw(&format!("[{id},[]]")));
+        insta::assert_snapshot!([send(&main), send(&second)].join("\n"), @r#"
+        null
+        rejected: "this session has ended"
+        "#);
+    }
+
+    #[test]
+    fn a_json_body_reads_as_bytes() {
+        let mock = Mock::new(mock_builder().taba(router()));
+        let main = mock.webview("main");
+        let id = main.invoke("taba::connect", InvokeBody::default());
+        let numbers = serde_json::Value::from(format!("[{id},[]]").into_bytes());
+        insta::assert_snapshot!(main.invoke("taba::send", InvokeBody::Json(numbers)), @"null");
+    }
+
+    #[test]
+    fn other_commands_reach_the_fallback() {
+        let greet = |invoke: Invoke<MockRuntime>| match invoke.message.command() {
+            "greet" => {
+                invoke.resolver.resolve("hello");
+                true
+            }
+            _ => false,
+        };
+        let mock = Mock::new(mock_builder().taba_with_fallback(router(), greet));
+        let main = mock.webview("main");
+        let answers = [
+            main.invoke("greet", InvokeBody::default()),
+            main.invoke("taba::connect", InvokeBody::default()),
+        ];
+        insta::assert_snapshot!(answers.join("\n"), @r#"
+        "hello"
+        0
+        "#);
+    }
+}

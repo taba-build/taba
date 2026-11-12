@@ -4426,7 +4426,9 @@ dependencies = [
 name = "taba-tauri"
 version = "0.0.1"
 dependencies = [
+ "insta",
  "serde_core",
+ "serde_json",
  "taba",
  "tauri",
 ]
