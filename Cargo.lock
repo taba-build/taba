@@ -4365,7 +4365,7 @@ dependencies = [
 
 [[package]]
 name = "taba"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "futures-util",
  "insta",
@@ -4382,7 +4382,7 @@ dependencies = [
 
 [[package]]
 name = "taba-build"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "insta",
  "taba-rolldown",
@@ -4391,7 +4391,7 @@ dependencies = [
 
 [[package]]
 name = "taba-rolldown"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "oxc",
  "oxc_resolver",
@@ -4423,7 +4423,7 @@ dependencies = [
 
 [[package]]
 name = "taba-tauri"
-version = "0.0.0"
+version = "0.0.1"
 dependencies = [
  "serde_core",
  "taba",

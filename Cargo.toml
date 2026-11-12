@@ -12,8 +12,8 @@ serde_core = { version = "1.0.229", default-features = false }
 serde_json = { version = "1.0.154", default-features = false }
 specta = "=2.0.0-rc.27"
 specta-typescript = "=0.0.14"
-taba = { version = "0.0.0", path = "crates/taba" }
-taba-rolldown = { version = "0.0.0", path = "crates/taba-rolldown" }
+taba = { version = "0.0.1", path = "crates/taba" }
+taba-rolldown = { version = "0.0.1", path = "crates/taba-rolldown" }
 tauri = { version = "2.12.5", default-features = false }
 tokio = { version = "1.54.1", default-features = false }
 tokio-util = { version = "0.7.20", default-features = false }
@@ -29,7 +29,7 @@ unsafe_code = "forbid"
 broken_intra_doc_links = "deny"
 
 [workspace.package]
-version = "0.0.0" # sync public facing crates only
+version = "0.0.1" # sync public facing crates only
 rust-version = "1.95"
 edition = "2024"
 license = "Apache-2.0 OR MIT"
