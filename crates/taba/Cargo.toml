@@ -37,6 +37,7 @@ tokio-util = { workspace = true, optional = true, features = ["join-map"] }
 insta.workspace = true
 rustversion.workspace = true
 specta = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["test-util"] }
 trybuild.workspace = true
 
 [lints]

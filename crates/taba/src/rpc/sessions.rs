@@ -260,11 +260,14 @@ async fn deliver(reply: Reply, frames: impl Stream<Item = Kind>, nexts: Arc<Sema
 #[cfg(test)]
 mod tests {
     use alloc::string::{String, ToString};
-    use core::future::ready;
+    use core::{future::ready, time::Duration};
 
     use futures_util::stream::{self, Empty};
     use serde_json::{Value, json};
-    use tokio::runtime::{Builder, Runtime};
+    use tokio::{
+        runtime::{Builder, Runtime},
+        time::timeout,
+    };
 
     use super::{SessionId, Sessions};
     use crate::rpc::{
@@ -280,7 +283,8 @@ mod tests {
 
     impl Backend {
         fn new(router: Router) -> Self {
-            let runtime = Builder::new_current_thread().build().unwrap();
+            let runtime =
+                Builder::new_current_thread().enable_time().start_paused(true).build().unwrap();
             let sessions = Sessions::new(router, runtime.handle().clone());
             Self { runtime, sessions }
         }
@@ -291,11 +295,16 @@ mod tests {
         }
 
         /// The next frame for `id`'s session at `address` as JSON, or why there's none.
+        ///
+        /// The runtime's clock is [paused](tokio::time::pause), so the timeout fires only when
+        /// no task can post a frame.
         fn poll(&self, address: &str, id: SessionId) -> String {
             let poll = self.sessions.poll(address, &serde_json::to_vec(&id).unwrap());
+            let poll = async { timeout(Duration::from_secs(1), poll).await };
             match self.runtime.block_on(poll) {
-                Ok(frame) => serde_json::to_string(&frame).unwrap(),
-                Err(error) => error.to_string(),
+                Ok(Ok(frame)) => serde_json::to_string(&frame).unwrap(),
+                Ok(Err(error)) => error.to_string(),
+                Err(_) => "no frame is coming".to_string(),
             }
         }
     }
