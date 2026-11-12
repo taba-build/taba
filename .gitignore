@@ -3,6 +3,7 @@
 
 # node
 node_modules/
+/packages/*/dist/
 
 # rust
 /target/

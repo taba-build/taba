@@ -1,0 +1,27 @@
+{
+  "name": "@taba-build/rpc",
+  "version": "0.0.1",
+  "description": "RPC Runtime for Taba, a Rolldown-based TypeScript bundler for Rust",
+  "license": "Apache-2.0 OR MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/taba-build/taba.git",
+    "directory": "packages/rpc"
+  },
+  "files": [
+    "dist",
+    "src",
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "rm -rf dist && tsc",
+    "prepack": "pnpm run build",
+    "typecheck": "tsc --noEmit"
+  }
+}

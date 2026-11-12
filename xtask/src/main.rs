@@ -108,6 +108,7 @@ fn lint() -> io::Result<()> {
 
     pnpm::run("lint", &[])?;
     pnpm::run("typecheck", &[])?;
+    pnpm::run("build", &[])?;
     mdbook::build()?;
     rustdoc::build()
 }

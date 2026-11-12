@@ -3,7 +3,8 @@
   "scripts": {
     "fmt": "oxfmt",
     "lint": "oxlint --deny-warnings",
-    "typecheck": "tsc -p xtask",
+    "typecheck": "pnpm -r run typecheck",
+    "build": "pnpm -r run build",
     "test": "pnpm --filter xtask run test"
   },
   "devDependencies": {
