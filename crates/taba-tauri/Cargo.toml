@@ -1,0 +1,18 @@
+[package]
+name = "taba-tauri"
+description = "Tauri backend for Taba, a Rolldown-based TypeScript bundler for Rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[dependencies]
+serde_core = { workspace = true, features = ["alloc"] }
+taba = { workspace = true, features = ["rpc"] }
+tauri.workspace = true
+
+[lints]
+workspace = true
