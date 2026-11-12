@@ -6,6 +6,7 @@ node_modules/
 
 # rust
 /target/
+*.pending-snap
 
 # site
 /site/book/

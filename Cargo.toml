@@ -13,7 +13,8 @@ serde_json = { version = "1.0.154", default-features = false }
 specta = "=2.0.0-rc.27"
 specta-typescript = "=0.0.14"
 taba-rolldown = { version = "0.0.0", path = "crates/taba-rolldown" }
-tokio = { version = "1.53.3", features = ["rt"] }
+tokio = { version = "1.54.1", default-features = false }
+tokio-util = { version = "0.7.20", default-features = false }
 trybuild = "1.0.122"
 
 [workspace.lints.rust]

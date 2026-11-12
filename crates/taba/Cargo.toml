@@ -16,15 +16,19 @@ rpc = [
   "serde_json/raw_value",
   "dep:specta",
   "dep:specta-typescript",
+  "dep:tokio",
+  "dep:tokio-util",
 ]
 
 [dependencies]
-futures-util = { workspace = true, optional = true, features = ["alloc"] }
+futures-util = { workspace = true, optional = true, features = ["std"] }
 serde = { workspace = true, optional = true, features = ["alloc", "derive"] }
 serde_core.workspace = true
 serde_json = { workspace = true, features = ["alloc"] }
 specta = { workspace = true, optional = true }
 specta-typescript = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["rt", "sync"] }
+tokio-util = { workspace = true, optional = true, features = ["join-map"] }
 
 [dev-dependencies]
 insta.workspace = true

@@ -1,6 +1,8 @@
 //! Taba's RPC
 
+mod error;
 mod router;
+mod sessions;
 #[cfg(test)]
 mod tests;
 mod wire;
@@ -10,19 +12,24 @@ use core::{convert::Infallible, marker::PhantomData};
 use serde::{Serialize, Serializer};
 use specta::{Type, Types, datatype::DataType};
 
-pub use self::router::{Answers, BuildError, Handler, Procedures, Router, State};
+pub use self::{
+    error::Error,
+    router::{Answers, BuildError, Handler, Procedures, Router, State},
+    sessions::{SessionId, Sessions},
+    wire::Frame,
+};
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::wire::{Frame, Kind, Message, Rejection, SafeInteger};
+    pub use super::wire::{Kind, Message, Rejection, SafeInteger};
 }
 
-/// What the page can call or subscribe to.
+/// What TypeScript can call or subscribe to.
 pub trait Procedure {
-    /// What the page gets on success.
+    /// What TypeScript gets on success.
     type Output;
 
-    /// What the page gets on error.
+    /// What TypeScript gets on error.
     type Error;
 }
 

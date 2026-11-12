@@ -1,8 +1,9 @@
-//! Rust <-> page.
+//! Rust <-> TypeScript.
 
 use alloc::{
     boxed::Box,
     string::{String, ToString},
+    vec::Vec,
 };
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
@@ -10,13 +11,22 @@ use serde_json::value::RawValue;
 use specta::{Type, Types, datatype::DataType};
 use specta_typescript::Number;
 
-/// A [Safe JavaScript Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger#description).
-#[derive(Debug)]
+use super::SessionId;
+
+/// A [Safe JavaScript Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger#description) <code>2<sup>53</sup> – 1</code>.
+///
+/// Never above <code>[Number.MAX_SAFE_INTEGER](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) 2<sup>53</sup> – 1</code>.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SafeInteger(u64);
 
 impl SafeInteger {
-    /// [`Number.MAX_SAFE_INTEGER`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER).
+    /// <code>[Number.MAX_SAFE_INTEGER](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/MAX_SAFE_INTEGER) 2<sup>53</sup> – 1</code>.
     const MAX: u64 = (1 << 53) - 1;
+
+    /// The next integer, or this one again at the max.
+    pub(crate) fn saturating_next(self) -> Self {
+        Self((self.0 + 1).min(Self::MAX))
+    }
 }
 
 impl Serialize for SafeInteger {
@@ -40,7 +50,7 @@ impl Type for SafeInteger {
     }
 }
 
-/// Requests from the page.
+/// Requests from TypeScript.
 ///
 /// `value` comes last for [`RawValue`]'s deferred parsing.
 #[derive(Debug, Deserialize)]
@@ -48,35 +58,46 @@ impl Type for SafeInteger {
 pub enum Message<'a> {
     /// Answered once.
     Call(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+
     /// Answered once per [`Next`](Self::Next).
     Subscribe(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+
     /// Pulls one value.
     Next(SafeInteger),
+
     /// Abort a call or subscription's task.
     Cancel(SafeInteger),
 }
+
+/// A session's [`Message`]s, in the order TypeScript sent them.
+#[derive(Debug, Deserialize)]
+pub(crate) struct Batch<'a>(pub(crate) SessionId, #[serde(borrow)] pub(crate) Vec<Message<'a>>);
 
 /// What a poll returns.
 #[derive(Debug, Serialize)]
 pub struct Frame {
     /// Its message's id.
-    pub id: SafeInteger,
+    pub(crate) id: SafeInteger,
+
     /// Beside `id` on the wire.
     #[serde(flatten)]
-    pub kind: Kind,
+    pub(crate) kind: Kind,
 }
 
-/// What a frame tells the page.
+/// What a frame tells TypeScript.
 #[derive(Debug, Serialize)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
 pub enum Kind {
     /// A handler's `Ok`.
     Value(Box<RawValue>),
+
     /// A handler's `Err`, which no frame follows.
     Error(Box<RawValue>),
+
     /// After a stream's last value.
     End,
-    /// [`taba`](crate)'s own failure, which the page rejects.
+
+    /// [`taba`](crate)'s own failure, rejected in TypeScript.
     Reject(Rejection),
 }
 
@@ -103,10 +124,15 @@ impl Kind {
 pub enum Rejection {
     /// No procedure by this name answers the request.
     Unknown(String),
+
     /// A request serde can't parse, and why.
     Invalid(String),
+
     /// An answer serde can't encode, and why.
     Unencodable(String),
+
+    /// A handler's panic.
+    Panic(String),
 }
 
 #[cfg(test)]
@@ -133,6 +159,7 @@ mod tests {
 
         let max: SafeInteger = serde_json::from_str("9007199254740991").unwrap();
         insta::assert_snapshot!(serde_json::to_string(&max).unwrap(), @"9007199254740991");
+        insta::assert_snapshot!(serde_json::to_string(&max.saturating_next()).unwrap(), @"9007199254740991");
 
         let error = serde_json::from_str::<SafeInteger>("9007199254740992").unwrap_err();
         insta::assert_snapshot!(error, @"9007199254740992 > `Number.MAX_SAFE_INTEGER`");
@@ -202,6 +229,10 @@ mod tests {
                 id: SafeInteger(5),
                 kind: Kind::Reject(Rejection::Unencodable("key must be a string".into())),
             },
+            Frame {
+                id: SafeInteger(6),
+                kind: Kind::Reject(Rejection::Panic("the mine flooded".into())),
+            },
         ];
         let frames = frames.map(|frame| serde_json::to_string(&frame).unwrap());
         insta::assert_snapshot!(frames.join("\n"), @r#"
@@ -211,6 +242,7 @@ mod tests {
         {"id":3,"kind":"reject","value":{"kind":"unknown","value":"sell"}}
         {"id":4,"kind":"reject","value":{"kind":"invalid","value":"trailing comma"}}
         {"id":5,"kind":"reject","value":{"kind":"unencodable","value":"key must be a string"}}
+        {"id":6,"kind":"reject","value":{"kind":"panic","value":"the mine flooded"}}
         "#);
     }
 }

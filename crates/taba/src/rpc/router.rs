@@ -184,7 +184,7 @@ pub struct Router {
 
 impl Router {
     /// Answers a call.
-    pub fn call(
+    pub(crate) fn call(
         &self,
         name: &str,
         request: &RawValue,
@@ -196,7 +196,7 @@ impl Router {
     }
 
     /// Answers a subscription, a frame per item, until its handler's stream ends.
-    pub fn subscribe(
+    pub(crate) fn subscribe(
         &self,
         name: &str,
         request: &RawValue,
