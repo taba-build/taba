@@ -12,13 +12,10 @@ use core::{any::type_name, fmt, future::ready};
 use futures_util::{FutureExt, Stream, StreamExt, stream};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::value::{RawValue, to_raw_value};
-use specta::{
-    Type, Types,
-    datatype::{DataType, Reference},
-};
 
 use self::sealed::Erased;
 use super::{Once, Output, Procedure, Strand, wire::Kind};
+use crate::typescript::{Read, Shape};
 
 /// Procedures, and the handlers an app attaches.
 ///
@@ -26,7 +23,6 @@ use super::{Once, Output, Procedure, Strand, wire::Kind};
 #[derive(Debug)]
 pub struct Procedures<S = ()> {
     names: BTreeMap<String, Pairing>,
-    unnamed: Vec<Problem>,
     state: S,
 }
 
@@ -46,7 +42,7 @@ impl Procedures {
 
 impl Default for Procedures {
     fn default() -> Self {
-        Self { names: BTreeMap::new(), unnamed: Vec::new(), state: () }
+        Self { names: BTreeMap::new(), state: () }
     }
 }
 
@@ -54,25 +50,22 @@ impl<S> Procedures<S> {
     /// Adds `P`.
     pub fn declare<P>(mut self) -> Self
     where
-        P: Procedure + Type,
+        P: Procedure + Read,
     {
-        match Self::name::<P>() {
-            Ok(name) => self.names.entry(name).or_default().declared = true,
-            Err(problem) => self.unnamed.push(problem),
-        }
+        self.names.entry(Self::name::<P>()).or_default().declared = true;
         self
     }
 
     /// Gives the next handlers `state`.
     pub fn with_state<S2>(self, state: S2) -> Procedures<S2> {
-        Procedures { names: self.names, unnamed: self.unnamed, state }
+        Procedures { names: self.names, state }
     }
 
     /// Answers `P` with `handler`.
     pub fn handle<H, Args, P>(self, handler: H) -> Self
     where
         H: Handler<Args, S, Request = P> + Send + Sync + 'static,
-        P: DeserializeOwned + Procedure + Type,
+        P: DeserializeOwned + Procedure + Read,
         P::Output: Output,
         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S: Clone + Send + Sync + 'static,
@@ -85,7 +78,7 @@ impl<S> Procedures<S> {
     pub fn handle_with<S2, H, Args, P>(mut self, state: S2, handler: H) -> Self
     where
         H: Handler<Args, S2, Request = P> + Send + Sync + 'static,
-        P: DeserializeOwned + Procedure + Type,
+        P: DeserializeOwned + Procedure + Read,
         P::Output: Output,
         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S2: Clone + Send + Sync + 'static,
@@ -95,10 +88,7 @@ impl<S> Procedures<S> {
             Err(error) => Err(Kind::invalid(error)),
         };
         let erased = H::Response::erase(parsed);
-        match Self::name::<P>() {
-            Ok(name) => self.names.entry(name).or_default().handlers.push(erased),
-            Err(problem) => self.unnamed.push(problem),
-        }
+        self.names.entry(Self::name::<P>()).or_default().handlers.push(erased);
         self
     }
 
@@ -108,7 +98,7 @@ impl<S> Procedures<S> {
     ///
     /// Every procedure and handler that don't pair up.
     pub fn build(self) -> Result<Router, BuildError> {
-        let mut problems = self.unnamed;
+        let mut problems = Vec::new();
         let mut paired = BTreeMap::new();
         for (name, Pairing { declared, mut handlers }) in self.names {
             let handler = handlers.pop();
@@ -126,13 +116,13 @@ impl<S> Procedures<S> {
     }
 
     /// `P`'s path, crate first, so two modules can share a type name.
-    fn name<P: Type>() -> Result<String, Problem> {
-        let mut types = Types::default();
-        let DataType::Reference(Reference::Named(reference)) = P::definition(&mut types) else {
-            return Err(Problem::Unnamed(type_name::<P>()));
+    fn name<P: Read>() -> String {
+        let Shape::Reference(named) = P::__SHAPE else {
+            // private api, we only support deriving
+            unreachable!("`{}` implements `Read` by hand", type_name::<P>())
         };
-        let named = types.get(&reference).ok_or(Problem::Unnamed(type_name::<P>()))?;
-        Ok(format!("{}::{}", named.module_path, named.name))
+        let named = named();
+        format!("{}::{}", named.module_path, named.name)
     }
 }
 
@@ -303,13 +293,11 @@ enum Problem {
     Missing(String),
     Several(String, usize),
     Undeclared(String),
-    Unnamed(&'static str),
 }
 
 impl fmt::Display for Problem {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Unnamed(procedure) => write!(f, "`{procedure}`'s `Type` isn't a named type"),
             Self::Missing(name) => write!(f, "no handler for `{name}`"),
             Self::Several(name, count) => write!(f, "{count} handlers for `{name}`"),
             Self::Undeclared(name) => write!(f, "a handler for `{name}`, which isn't declared"),

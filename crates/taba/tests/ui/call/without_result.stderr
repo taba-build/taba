@@ -1,7 +1,7 @@
 error[E0271]: expected `impl Future<Output = u32>` to be a future that resolves to `Result<u32, Never>`, but it resolves to `u32`
-  --> tests/ui/call/without_result.rs:20:30
+  --> tests/ui/call/without_result.rs:19:30
    |
-20 |     Procedures::new().handle(buy);
+19 |     Procedures::new().handle(buy);
    |                       ------ ^^^ expected `Result<u32, Never>`, found `u32`
    |                       |
    |                       required by a bound introduced by this call

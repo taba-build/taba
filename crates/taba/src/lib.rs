@@ -3,30 +3,40 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
-#[cfg(feature = "rpc")]
+#[cfg(test)]
+extern crate self as taba; // ease testing generated code from our tests
+#[cfg(feature = "std")]
 extern crate std;
 
 mod error;
 #[cfg(feature = "rpc")]
 pub mod rpc;
+mod typescript;
 
 use alloc::string::{String, ToString as _};
 use core::fmt::{self, Display, Write};
 
 use serde_core::Serialize;
+#[cfg(feature = "derive")]
+pub use taba_derive::{Read, Written};
 
-pub use crate::error::Error;
+pub use crate::{
+    error::Error,
+    typescript::{Key, Read, Written},
+};
 
 /// Alias for a `Result` with the error type `taba::Error`.
 pub type Result<T, E = Error> = core::result::Result<T, E>;
 
-/// What generated code names through taba: a std crate has no `alloc` without [`extern crate`](https://doc.rust-lang.org/reference/names/preludes.html#extern-prelude).
+/// What generated code names through taba.
 #[doc(hidden)]
 pub mod __private {
+    /// A std crate has no `alloc` without [`extern crate`](https://doc.rust-lang.org/reference/names/preludes.html#extern-prelude).
     pub use alloc::string::String;
 
     #[cfg(feature = "rpc")]
     pub use crate::rpc::__private as rpc;
+    pub use crate::typescript::__private as typescript;
 }
 
 /// Include `taba-build` output as the named module.

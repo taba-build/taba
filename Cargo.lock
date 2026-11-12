@@ -3,12 +3,6 @@
 version = 4
 
 [[package]]
-name = "Inflector"
-version = "0.11.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
-
-[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3848,7 +3842,7 @@ checksum = "32e265784ad618884abaea0600a9adf15393368d840e0222d101a072f3f7534d"
 dependencies = [
  "proc-macro2",
  "quote",
- "serde_derive_internals",
+ "serde_derive_internals 0.29.1",
  "syn 2.0.119",
 ]
 
@@ -3950,6 +3944,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "serde_derive_internals"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f852137cce035d6a4df67ccce505ff6b3e9fd3a10e3e52b24dc71e650bb1a9bd"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.10",
 ]
 
 [[package]]
@@ -4180,37 +4185,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "specta"
-version = "2.0.0-rc.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81633014710ece1c7e8ac99e1bc9ad8d4339a2ccbae89ca2aa1095d4262c86b8"
-dependencies = [
- "rustc_version",
- "specta-macros",
-]
-
-[[package]]
-name = "specta-macros"
-version = "2.0.0-rc.27"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fe882a75f48f76ac091ca2c5aaad7abd4dfdedf649c08e865bb0d62b5a2cb92"
-dependencies = [
- "Inflector",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "specta-typescript"
-version = "0.0.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a113bb506b00463cfb54c5819e55ec081bc7d52ef463d7726181e9073cd473a"
-dependencies = [
- "specta",
-]
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4374,8 +4348,7 @@ dependencies = [
  "serde",
  "serde_core",
  "serde_json",
- "specta",
- "specta-typescript",
+ "taba-derive",
  "tokio",
  "tokio-util",
  "trybuild",
@@ -4388,6 +4361,16 @@ dependencies = [
  "insta",
  "taba-rolldown",
  "tokio",
+]
+
+[[package]]
+name = "taba-derive"
+version = "0.0.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "serde_derive_internals 0.30.0",
+ "syn 3.0.10",
 ]
 
 [[package]]

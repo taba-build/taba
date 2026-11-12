@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `impl Stream<Item = Result<u32, Never>>: Answers<taba::rpc::Once<u32>, Never>` is not satisfied
-  --> tests/ui/call/returns_stream.rs:21:30
+  --> tests/ui/call/returns_stream.rs:20:30
    |
-21 |     Procedures::new().handle(buy);
+20 |     Procedures::new().handle(buy);
    |                       ------ ^^^ the trait `futures_util::Future` is not implemented for `impl Stream<Item = Result<u32, Never>>`
    |                       |
    |                       required by a bound introduced by this call

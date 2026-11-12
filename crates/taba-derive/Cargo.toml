@@ -1,0 +1,25 @@
+[package]
+name = "taba-derive"
+description = "Derive macros for Taba, a Rolldown-based TypeScript bundler for Rust"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+readme.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+serde_derive_internals.workspace = true
+syn.workspace = true
+
+[lints]
+workspace = true

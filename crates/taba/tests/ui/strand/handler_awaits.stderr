@@ -1,7 +1,7 @@
 error[E0277]: the trait bound `impl futures_util::Future<Output = impl Stream<Item = Result<u32, Never>>>: Answers<Strand<u32>, Never>` is not satisfied
-  --> tests/ui/strand/handler_awaits.rs:21:30
+  --> tests/ui/strand/handler_awaits.rs:20:30
    |
-21 |     Procedures::new().handle(ore);
+20 |     Procedures::new().handle(ore);
    |                       ------ ^^^ the trait `Stream` is not implemented for `impl futures_util::Future<Output = impl Stream<Item = Result<u32, Never>>>`
    |                       |
    |                       required by a bound introduced by this call

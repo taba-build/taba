@@ -7,10 +7,9 @@ mod sessions;
 mod tests;
 mod wire;
 
-use core::{convert::Infallible, marker::PhantomData};
+use core::marker::PhantomData;
 
 use serde::{Serialize, Serializer};
-use specta::{Type, Types, datatype::DataType};
 
 pub use self::{
     error::Error,
@@ -62,11 +61,5 @@ pub enum Never {}
 impl Serialize for Never {
     fn serialize<S: Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
         match *self {}
-    }
-}
-
-impl Type for Never {
-    fn definition(types: &mut Types) -> DataType {
-        Infallible::definition(types)
     }
 }

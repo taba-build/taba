@@ -13,30 +13,34 @@ readme.workspace = true
 all-features = true
 
 [features]
+derive = ["dep:taba-derive"]
 rpc = [
+  "std",
   "dep:futures-util",
   "dep:serde",
   "serde_json/raw_value",
-  "dep:specta",
-  "dep:specta-typescript",
   "dep:tokio",
   "dep:tokio-util",
 ]
+std = []
 
 [dependencies]
 futures-util = { workspace = true, optional = true, features = ["std"] }
 serde = { workspace = true, optional = true, features = ["alloc", "derive"] }
 serde_core.workspace = true
 serde_json = { workspace = true, features = ["alloc"] }
-specta = { workspace = true, optional = true }
-specta-typescript = { workspace = true, optional = true }
+taba-derive = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt", "sync"] }
 tokio-util = { workspace = true, optional = true, features = ["join-map"] }
+
+# enforce the pin for things that depend directly on taba-derive, see https://github.com/matklad/macro-dep-test
+[target.'cfg(any())'.dependencies]
+taba-derive.workspace = true
 
 [dev-dependencies]
 insta.workspace = true
 rustversion.workspace = true
-specta = { workspace = true, features = ["derive"] }
+taba-derive.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 trybuild.workspace = true
 

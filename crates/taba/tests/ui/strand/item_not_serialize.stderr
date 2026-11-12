@@ -1,15 +1,15 @@
 error[E0277]: the trait bound `Nugget: serde::Serialize` is not satisfied
-  --> tests/ui/strand/item_not_serialize.rs:23:30
+  --> tests/ui/strand/item_not_serialize.rs:22:30
    |
-23 |     Procedures::new().handle(ore);
+22 |     Procedures::new().handle(ore);
    |                       ------ ^^^ unsatisfied trait bound
    |                       |
    |                       required by a bound introduced by this call
    |
 help: the trait `Serialize` is not implemented for `Nugget`
-  --> tests/ui/strand/item_not_serialize.rs:11:1
+  --> tests/ui/strand/item_not_serialize.rs:10:1
    |
-11 | struct Nugget;
+10 | struct Nugget;
    | ^^^^^^^^^^^^^
    = note: for local types consider adding `#[derive(serde::Serialize)]` to your `Nugget` type
    = note: for types from other crates check whether the crate offers a `serde` feature flag

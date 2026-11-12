@@ -2,10 +2,9 @@
 
 use futures_util::{Stream, stream};
 use serde::Deserialize;
-use specta::Type;
-use taba::rpc::{Never, Procedure, Procedures};
+use taba::{Read, rpc::{Never, Procedure, Procedures}};
 
-#[derive(Deserialize, Type)]
+#[derive(Deserialize, Read)]
 struct Buy;
 
 impl Procedure for Buy {

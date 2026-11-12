@@ -1,7 +1,7 @@
 error[E0271]: type mismatch resolving `<impl Stream<Item = u32> as Stream>::Item == Result<u32, Never>`
-  --> tests/ui/strand/without_result.rs:21:30
+  --> tests/ui/strand/without_result.rs:20:30
    |
-21 |     Procedures::new().handle(ore);
+20 |     Procedures::new().handle(ore);
    |                       ------ ^^^ expected `Result<u32, Never>`, found `u32`
    |                       |
    |                       required by a bound introduced by this call

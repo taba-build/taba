@@ -8,8 +8,6 @@ use alloc::{
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::value::RawValue;
-use specta::{Type, Types, datatype::DataType};
-use specta_typescript::Number;
 
 use super::SessionId;
 
@@ -41,12 +39,6 @@ impl<'de> Deserialize<'de> for SafeInteger {
             x if x <= Self::MAX => Ok(SafeInteger(x)),
             x => Err(de::Error::custom(format_args!("{x} > `Number.MAX_SAFE_INTEGER`"))),
         }
-    }
-}
-
-impl Type for SafeInteger {
-    fn definition(types: &mut Types) -> DataType {
-        Number::<()>::definition(types)
     }
 }
 
@@ -140,8 +132,6 @@ mod tests {
     use alloc::vec::Vec;
 
     use serde_json::value::RawValue;
-    use specta::{Type, Types};
-    use specta_typescript::{Typescript, primitives};
 
     use super::{Frame, Kind, Message, Rejection, SafeInteger};
 
@@ -163,11 +153,6 @@ mod tests {
 
         let error = serde_json::from_str::<SafeInteger>("9007199254740992").unwrap_err();
         insta::assert_snapshot!(error, @"9007199254740992 > `Number.MAX_SAFE_INTEGER`");
-
-        let mut types = Types::default();
-        let definition = SafeInteger::definition(&mut types);
-        let exported = primitives::inline(&Typescript::default(), &types, &definition).unwrap();
-        insta::assert_snapshot!(exported, @"number");
     }
 
     #[test]
