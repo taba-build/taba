@@ -21,7 +21,7 @@ use super::{
 };
 
 /// A session's id.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct SessionId(SafeInteger);
 
 /// Sessions, each at an address, answered by one [`Router`].
