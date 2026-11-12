@@ -34,6 +34,7 @@ fn doc(dir: &str, args: &[&str]) -> io::Result<()> {
         "-Z unstable-options",
         "--enable-index-page",                        // unstable
         "--default-setting preferred-dark-theme=ayu", // same as the book
+        "--cfg docsrs",                               // same as docs.rs
     ];
     doc.env("RUSTDOCFLAGS", flags.join(" "));
     doc.current_dir(WORKSPACE); // no package flag means the default members only here

@@ -9,6 +9,9 @@ repository.workspace = true
 rust-version.workspace = true
 readme.workspace = true
 
+[package.metadata.docs.rs]
+all-features = true
+
 [dependencies]
 serde_core = { workspace = true, features = ["alloc"] }
 taba = { workspace = true, features = ["rpc"] }

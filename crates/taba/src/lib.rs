@@ -1,5 +1,6 @@
 //! Taba's runtime
 #![no_std]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
 #[cfg(feature = "rpc")]
