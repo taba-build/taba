@@ -8,8 +8,8 @@
     "test": "pnpm --filter xtask run test"
   },
   "devDependencies": {
-    "oxfmt": "^0.75.0",
-    "oxlint": "^1.90.0",
+    "oxfmt": "^0.78.0",
+    "oxlint": "^1.93.0",
     "typescript": "^7.0.2"
   },
   "devEngines": {
@@ -20,7 +20,7 @@
     },
     "runtime": {
       "name": "node",
-      "version": "^26.13.0",
+      "version": "^26.13.1",
       "onFail": "download"
     }
   },
