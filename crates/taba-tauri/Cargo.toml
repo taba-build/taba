@@ -1,6 +1,6 @@
 [package]
 name = "taba-tauri"
-description = "Tauri backend for Taba, a Rolldown-based TypeScript bundler for Rust"
+description = "Tauri transport for Taba, a Rolldown-based TypeScript bundler for Rust using serde"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

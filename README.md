@@ -2,10 +2,10 @@
 
 <!-- ANCHOR: pitch -->
 
-Taba is a [Rolldown]-based TypeScript bundler **for** Rust: Rust types flow into TypeScript and
-scripts come back as typed Rust functions.
+Taba is a [Rolldown]-based TypeScript bundler **for** Rust using [serde].
 
 [Rolldown]: https://rolldown.rs/
+[serde]: https://serde.rs/
 
 <!-- ANCHOR_END: pitch -->
 

@@ -1,4 +1,4 @@
-//! Taba's Tauri backend
+//! Taba's Tauri transport
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 use std::{borrow::Cow, fmt, sync::Arc};

@@ -1,6 +1,6 @@
 [package]
 name = "taba"
-description = "Runtime for Taba, a Rolldown-based TypeScript bundler for Rust"
+description = "Runtime for Taba, a Rolldown-based TypeScript bundler for Rust using serde"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
