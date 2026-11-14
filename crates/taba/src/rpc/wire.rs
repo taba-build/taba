@@ -47,12 +47,12 @@ impl<'de> Deserialize<'de> for SafeInteger {
 /// `value` comes last for [`RawValue`]'s deferred parsing.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
-pub enum Message<'a> {
+pub enum Message {
     /// Answered once.
-    Call(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+    Call(SafeInteger, String, Box<RawValue>),
 
     /// Answered once per [`Next`](Self::Next).
-    Subscribe(SafeInteger, &'a str, #[serde(borrow)] &'a RawValue),
+    Subscribe(SafeInteger, String, Box<RawValue>),
 
     /// Pulls one value.
     Next(SafeInteger),
@@ -63,7 +63,7 @@ pub enum Message<'a> {
 
 /// A session's [`Message`]s, in the order TypeScript sent them.
 #[derive(Debug, Deserialize)]
-pub(crate) struct Batch<'a>(pub(crate) SessionId, #[serde(borrow)] pub(crate) Vec<Message<'a>>);
+pub(crate) struct Batch(pub(crate) SessionId, pub(crate) Vec<Message>);
 
 /// What a poll returns.
 #[derive(Debug, Serialize)]

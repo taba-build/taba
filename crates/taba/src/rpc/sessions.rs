@@ -166,12 +166,10 @@ impl Session {
     }
 
     /// Starts, pulls or cancels one request.
-    fn apply(&mut self, router: &Arc<Router>, runtime: &Handle, message: Message<'_>) {
+    fn apply(&mut self, router: &Arc<Router>, runtime: &Handle, message: Message) {
         match message {
             Message::Call(id, name, request) => {
                 let router = Arc::clone(router);
-                let name = name.to_owned();
-                let request = request.to_owned();
                 let reply = self.reply(id);
                 let task = guarded(reply.clone(), async move {
                     reply.post(router.call(&name, &request).await).await;
@@ -180,8 +178,6 @@ impl Session {
             }
             Message::Subscribe(id, name, request) => {
                 let router = Arc::clone(router);
-                let name = name.to_owned();
-                let request = request.to_owned();
 
                 // handler lazily starts at first `next`
                 let frames = async move { router.subscribe(&name, &request) }.flatten_stream();
