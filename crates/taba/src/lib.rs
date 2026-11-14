@@ -68,6 +68,8 @@ macro_rules! include_scripts {
 const BLOCK_SCOPED_GLOBAL: &str = "_taba";
 
 /// A script that runs the bundle with input.
+///
+/// The bundle reads `input` from the global `_taba`.
 pub fn script<T>(bundle: &str, input: &T) -> Result<String, Error>
 where
     T: ?Sized + Serialize,

@@ -12,9 +12,9 @@ mod error;
 /// Alias for a `Result` with the error type `taba_build::Error`.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Bundles `module` and its imports into one script, the bundle `taba::script` runs.
+/// Bundles `module` and its imports into one script.
 ///
-/// The module reads its input from the global `_taba`. Like any ES module, it runs in strict mode.
+/// Like any ES module, it runs in strict mode.
 ///
 /// # Errors
 ///
