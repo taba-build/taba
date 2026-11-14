@@ -19,7 +19,7 @@ enum Generator {
 ///
 /// Sent once per tick.
 #[derive(Serialize, Output)]
-struct Mine {
+struct Mine<'a> {
     /// Ore on hand, by kind.
     ore: BTreeMap<String, u32>,
 
@@ -30,12 +30,12 @@ struct Mine {
     for_sale: Vec<shop::Generator>,
 
     /// The level below, dug on a `*/5` schedule.
-    deeper: Option<Box<Mine>>,
+    deeper: Option<Box<Mine<'a>>>,
 
     running: bool,
 
     #[serde(rename = "gift-note")]
-    gift_note: String,
+    gift_note: &'a str,
 }
 
 #[derive(Serialize, Output)]

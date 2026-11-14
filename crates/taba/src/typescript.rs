@@ -1,7 +1,7 @@
 //! What serde_json writes and reads, as TypeScript sees it.
 //!
 //! [`Output`] is what TypeScript receives, and [`Input`] is what it may send. Each impl holds a
-//! [`Shape`] as const data. A derived type is one [`Named`] static that other shapes refer to.
+//! [`Shape`] as const data. A derived type is one [`Named`] that other shapes refer to.
 //! Only the derives and the impls here build shapes, so they're hidden.
 //!
 //! 64-bit integers have no impl, because a JavaScript number can't hold one exactly. They're fine
@@ -60,7 +60,7 @@ pub enum Shape {
 
     /// A named type, declared once.
     ///
-    /// A `fn` so a recursive type's static can refer to itself.
+    /// A `fn` so a recursive type can refer to itself.
     Reference(fn() -> &'static Named),
 }
 

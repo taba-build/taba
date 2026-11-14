@@ -11,7 +11,7 @@
 //!
 //! Not supported yet:
 //!
-//! * generic types, lifetimes included
+//! * type and const parameters
 //! * an internally tagged enum with a newtype variant
 //! * `untagged` on a variant of a tagged enum
 //! * `flatten` on a field
@@ -47,7 +47,7 @@ use serde_derive_internals::{
     name::MultiName,
     replace_receiver,
 };
-use syn::{Attribute, DeriveInput, LitStr, ext::IdentExt, parse_macro_input};
+use syn::{Attribute, DeriveInput, GenericParam, LitStr, ext::IdentExt, parse_macro_input};
 
 /// Describes what `#[derive(Serialize)]` writes, from the same [attributes](crate#attributes).
 #[proc_macro_derive(Output, attributes(serde, taba))]
@@ -239,22 +239,23 @@ impl Expander<'_> {
         let shape = self.shape(&source);
         let path = self.direction.trait_path();
         let optional = self.optional(&source);
+        let (impl_generics, ty_generics, where_clause) = container.generics.split_for_impl();
         quote! {
             const _: () = {
                 use ::taba::__private::typescript as _taba;
 
-                static NAMED: _taba::Named = _taba::Named {
-                    module_path: ::core::module_path!(),
-                    name: #name,
-                    docs: #docs,
-                    direction: #direction,
-                    file: ::core::file!(),
-                    line: ::core::line!(),
-                    shape: #shape,
-                };
-
-                impl #path for #ident {
-                    const __SHAPE: _taba::Shape = _taba::Shape::Reference(|| &NAMED);
+                impl #impl_generics #path for #ident #ty_generics #where_clause {
+                    const __SHAPE: _taba::Shape = _taba::Shape::Reference(|| {
+                        &_taba::Named {
+                            module_path: ::core::module_path!(),
+                            name: #name,
+                            docs: #docs,
+                            direction: #direction,
+                            file: ::core::file!(),
+                            line: ::core::line!(),
+                            shape: #shape,
+                        }
+                    });
                     #optional
                 }
             };
@@ -265,9 +266,11 @@ impl Expander<'_> {
     fn refuse_unsupported(&self) {
         let container = self.container;
         let original = container.original;
-        if !container.generics.params.is_empty() {
-            let message = "generic types and lifetimes aren't supported yet";
-            self.ctxt.error_spanned_by(container.generics, message);
+        let mut parameters = container.generics.params.iter();
+        let generic = parameters.find(|parameter| !matches!(parameter, GenericParam::Lifetime(_)));
+        if let Some(parameter) = generic {
+            let message = "type and const parameters aren't supported yet";
+            self.ctxt.error_spanned_by(parameter, message);
         }
         if container.attrs.remote().is_some() {
             self.ctxt.error_spanned_by(original, "`remote` isn't supported yet");
