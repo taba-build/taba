@@ -8,7 +8,7 @@ use std::{
 };
 
 use taba::{
-    __private::typescript::{Direction, Named, Object, Shape},
+    __private::typescript::{Direction, Named, Object, Rest, Shape},
     Input, Output,
 };
 use taba_rolldown::oxc::{
@@ -103,6 +103,9 @@ impl Declarations {
             Shape::Object(object) => {
                 let shapes = object.properties.iter().map(|property| &property.shape);
                 self.add_all(shapes);
+                if let Rest::Flattened(flattened) = object.rest {
+                    self.add_all(flattened);
+                }
             }
             Shape::Choice(variants) => {
                 let shapes = variants.iter().map(|variant| &variant.shape);
@@ -340,6 +343,7 @@ impl<'a> Printer<'a> {
         TSType::new_ts_type_literal(SPAN, [index], ast)
     }
 
+    /// `{ ... }`, then `& ...` for each shape [flattened](Rest::Flattened) into it.
     fn object(&mut self, object: &Object) -> TSType<'a> {
         let ast = self.ast;
         let mut members = ArenaVec::new_in(ast);
@@ -356,7 +360,26 @@ impl<'a> Printer<'a> {
                 ast,
             ));
         }
-        TSType::new_ts_type_literal(SPAN, members, ast)
+        let literal = TSType::new_ts_type_literal(SPAN, members, ast);
+        let Rest::Flattened(flattened) = object.rest else {
+            return literal;
+        };
+        let flattened = flattened.iter().map(|shape| self.flattened(shape));
+        let types = ArenaVec::from_iter_in(iter::once(literal).chain(flattened), ast);
+        TSType::new_ts_intersection_type(SPAN, types, ast)
+    }
+
+    /// The keys a [flattened](Rest::Flattened) `shape` adds.
+    fn flattened(&mut self, shape: &Shape) -> TSType<'a> {
+        let ast = self.ast;
+        match shape {
+            Shape::Null => TSType::new_ts_type_literal(SPAN, [], ast),
+            Shape::Union(members) => {
+                let members = members.iter().map(|member| self.flattened(member));
+                TSType::new_ts_union_type(SPAN, ArenaVec::from_iter_in(members, ast), ast)
+            }
+            shape => self.ts(shape),
+        }
     }
 
     fn union<'s>(&mut self, shapes: impl IntoIterator<Item = &'s Shape>) -> TSType<'a> {

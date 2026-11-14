@@ -75,7 +75,7 @@ pub enum Message {
 pub(crate) struct Batch(pub(crate) SessionId, pub(crate) Vec<Message>);
 
 /// What a poll returns.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Output)]
 pub struct Frame {
     /// Its message's id.
     pub(crate) id: SafeInteger,

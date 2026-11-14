@@ -40,6 +40,16 @@ struct Mine<'a> {
 
     #[serde(rename = "gift-note")]
     gift_note: &'a str,
+
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    boost: Option<Boost>,
+}
+
+/// A boost the mine is under.
+#[derive(Serialize, Output)]
+struct Boost {
+    /// How many times faster it digs.
+    rate: u32,
 }
 
 #[derive(Serialize, Output)]
@@ -92,6 +102,11 @@ fn every_shape_kind() {
     	}
     }
     export namespace crate {
+    	/** A boost the mine is under. */
+    	export type Boost = {
+    		/** How many times faster it digs. */
+    		rate: number;
+    	};
     	export namespace Buy {
     		/** Buys generators. */
     		export type Input = $.crate.Generator.Input | {
@@ -128,7 +143,7 @@ fn every_shape_kind() {
     		/** The last survey, as the surveyor wrote it. */
     		survey: $.serde_json.value.Value;
     		"gift-note": string;
-    	};
+    	} & (($.crate.Boost | {}) | {});
     	export type Unreachable = never;
     }
     export namespace crate.shop {

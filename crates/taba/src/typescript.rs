@@ -16,7 +16,7 @@ use alloc::{
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::{Direction, Input, Named, Object, Output, Property, Shape, Variant};
+    pub use super::{Direction, Input, Named, Object, Output, Property, Rest, Shape, Variant};
 }
 
 /// One JSON shape.
@@ -67,11 +67,26 @@ pub enum Shape {
 /// An object's keys.
 #[derive(Debug)]
 pub struct Object {
-    /// Whether serde promises to reject keys the object doesn't declare.
-    pub closed: bool,
-
     /// Its keys, in serde's order.
     pub properties: &'static [Property],
+
+    /// Its other keys.
+    pub rest: Rest,
+}
+
+/// What serde does with an [`Object`]'s other keys.
+#[derive(Debug)]
+pub enum Rest {
+    /// Ignores them.
+    Ignored,
+
+    /// Rejects them, under `deny_unknown_fields`.
+    Rejected,
+
+    /// They're the keys of these `#[serde(flatten)]` fields.
+    ///
+    /// A `null` adds none, which is what a flattened `None` writes.
+    Flattened(&'static [Shape]),
 }
 
 /// One key of an [`Object`].

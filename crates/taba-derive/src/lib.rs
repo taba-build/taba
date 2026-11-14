@@ -14,7 +14,6 @@
 //! * type and const parameters
 //! * an internally tagged enum with a newtype variant
 //! * `untagged` on a variant of a tagged enum
-//! * `flatten` on a field
 //! * `remote`, `variant_identifier` and `field_identifier` on a type
 //! * `with`, `serialize_with` and `deserialize_with` on a variant
 //! * `skip_serializing_if` on a tuple field
@@ -22,6 +21,7 @@
 //! Never supported:
 //!
 //! * `skip` on a newtype's field (a newtype is its one value)
+//! * `flatten` with `deny_unknown_fields` (serde's docs rule out the pair)
 //!
 //! `#[taba(with = "Type")]` names a type with the same JSON, for both directions. Its
 //! `serialize_with` and `deserialize_with` keys do the same for [`Output`](macro@Output) or
@@ -157,7 +157,7 @@ impl Direction {
     }
 
     /// Whether serde promises to reject keys the type doesn't declare.
-    fn closed(self, container: &attr::Container) -> bool {
+    fn rejects(self, container: &attr::Container) -> bool {
         match self {
             Direction::Output => false,
             Direction::Input => container.deny_unknown_fields(),
@@ -269,8 +269,7 @@ impl Expander<'_> {
         let mut parameters = container.generics.params.iter();
         let generic = parameters.find(|parameter| !matches!(parameter, GenericParam::Lifetime(_)));
         if let Some(parameter) = generic {
-            let message = "type and const parameters aren't supported yet";
-            self.ctxt.error_spanned_by(parameter, message);
+            self.ctxt.error_spanned_by(parameter, "type and const parameters aren't supported yet");
         }
         if container.attrs.remote().is_some() {
             self.ctxt.error_spanned_by(original, "`remote` isn't supported yet");
@@ -332,9 +331,35 @@ impl Expander<'_> {
 
     /// An object of `fields`, led by `tag` when there is one.
     fn struct_object(&self, tag: Option<Tokens>, fields: &[Field]) -> Tokens {
-        let closed = self.direction.closed(&self.container.attrs);
-        let properties = self.present(fields).map(|field| self.property(field));
-        object(closed, tag.into_iter().chain(properties))
+        let (flattened, keyed): (Vec<_>, Vec<_>) =
+            self.present(fields).partition(|field| field.attrs.flatten());
+        let properties = tag.into_iter().chain(keyed.iter().map(|field| self.property(field)));
+        if flattened.is_empty() {
+            return object(properties, self.rest());
+        }
+        let shapes = flattened.iter().map(|field| self.flattened(field));
+        object(properties, quote!(_taba::Rest::Flattened(&[#(#shapes),*])))
+    }
+
+    /// The `Rest` of an object no field flattens into.
+    fn rest(&self) -> Tokens {
+        match self.direction.rejects(&self.container.attrs) {
+            true => quote!(_taba::Rest::Rejected),
+            false => quote!(_taba::Rest::Ignored),
+        }
+    }
+
+    /// The keys a flattened field adds, none when `skip_serializing_if` skips it.
+    fn flattened(&self, field: &Field) -> Tokens {
+        if self.direction.rejects(&self.container.attrs) {
+            let message = "`flatten` with `deny_unknown_fields` isn't supported";
+            self.ctxt.error_spanned_by(field.original, message);
+        }
+        let shape = self.field_shape(field);
+        if self.direction.skips_if(&field.attrs) {
+            return union([shape, quote!(_taba::Shape::Null)]);
+        }
+        shape
     }
 
     /// The fields serde writes or reads, in order.
@@ -375,9 +400,6 @@ impl Expander<'_> {
     }
 
     fn property(&self, field: &Field) -> Tokens {
-        if field.attrs.flatten() {
-            self.ctxt.error_spanned_by(field.original, "`flatten` isn't supported yet");
-        }
         let key = self.direction.name(field.attrs.name());
         let stand_in = self.field_stand_in(field);
         let optional = self.optional_key(field, stand_in.as_ref());
@@ -513,12 +535,11 @@ impl Expander<'_> {
     }
 
     fn externally_tagged(&self, variant: &Variant) -> Tokens {
-        let closed = self.direction.closed(&self.container.attrs);
         let name = self.direction.name(variant.attrs.name());
         if matches!(variant.style, Style::Unit) {
             return literal(&name);
         }
-        object(closed, [required(&name, self.untagged(variant))])
+        object([required(&name, self.untagged(variant))], self.rest())
     }
 
     fn internally_tagged(&self, tag: &str, variant: &Variant) -> Tokens {
@@ -526,7 +547,7 @@ impl Expander<'_> {
         let tag = required(tag, literal(&name));
         match (variant.style, variant.fields.as_slice()) {
             // serde takes extra keys here, with `deny_unknown_fields` or without
-            (Style::Unit, _) => object(false, [tag]),
+            (Style::Unit, _) => object([tag], quote!(_taba::Rest::Ignored)),
             (Style::Struct, fields) => self.struct_object(Some(tag), fields),
             // let newtype refuse it, skip is never supported
             (Style::Newtype, [field]) if self.direction.skips(&field.attrs) => self.newtype(field),
@@ -542,14 +563,13 @@ impl Expander<'_> {
     }
 
     fn adjacently_tagged(&self, tag: &str, content: &str, variant: &Variant) -> Tokens {
-        let closed = self.direction.closed(&self.container.attrs);
         let name = self.direction.name(variant.attrs.name());
         let tag = required(tag, literal(&name));
         if matches!(variant.style, Style::Unit) {
-            return object(closed, [tag]);
+            return object([tag], self.rest());
         }
         let value = required(content, self.untagged(variant));
-        object(closed, [tag, value])
+        object([tag, value], self.rest())
     }
 }
 
@@ -561,12 +581,12 @@ fn required(key: &str, shape: Tokens) -> Tokens {
     quote!(_taba::Property { key: #key, optional: false, docs: &[], shape: #shape })
 }
 
-fn object(closed: bool, properties: impl IntoIterator<Item = Tokens>) -> Tokens {
+fn object(properties: impl IntoIterator<Item = Tokens>, rest: Tokens) -> Tokens {
     let properties = properties.into_iter();
     quote! {
         _taba::Shape::Object(&_taba::Object {
             properties: &[#(#properties),*],
-            closed: #closed,
+            rest: #rest,
         })
     }
 }
