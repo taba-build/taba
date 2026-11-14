@@ -2,9 +2,9 @@
 
 use futures_util::{Stream, stream};
 use serde::Deserialize;
-use taba::{Read, rpc::{Never, Procedure, Procedures, Strand}};
+use taba::{Input, rpc::{Never, Procedure, Procedures, Strand}};
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 struct Ore;
 
 struct Nugget;

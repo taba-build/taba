@@ -18,11 +18,11 @@ use core::fmt::{self, Display, Write};
 
 use serde_core::Serialize;
 #[cfg(feature = "derive")]
-pub use taba_derive::{Read, Written};
+pub use taba_derive::{Input, Output};
 
 pub use crate::{
     error::Error,
-    typescript::{Key, Read, Written},
+    typescript::{Input, Key, Output},
 };
 
 /// Alias for a `Result` with the error type `taba::Error`.

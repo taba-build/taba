@@ -1,7 +1,7 @@
 //! A handler that reads a state other than the one it's given.
 
 use serde::Deserialize;
-use taba::{Read, rpc::{Never, Procedure, Procedures, State}};
+use taba::{Input, rpc::{Never, Procedure, Procedures, State}};
 
 #[derive(Clone)]
 struct Game;
@@ -9,7 +9,7 @@ struct Game;
 #[derive(Clone)]
 struct Shop;
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 struct Buy;
 
 impl Procedure for Buy {

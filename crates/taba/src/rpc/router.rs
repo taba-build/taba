@@ -15,7 +15,7 @@ use serde_json::value::{RawValue, to_raw_value};
 
 use self::sealed::Erased;
 use super::{Once, Output, Procedure, Strand, wire::Kind};
-use crate::typescript::{Read, Shape};
+use crate::typescript::{Input, Shape};
 
 /// Procedures, and the handlers an app attaches.
 ///
@@ -50,7 +50,7 @@ impl<S> Procedures<S> {
     /// Adds `P`.
     pub fn declare<P>(mut self) -> Self
     where
-        P: Procedure + Read,
+        P: Procedure + Input,
     {
         self.names.entry(Self::name::<P>()).or_default().declared = true;
         self
@@ -65,7 +65,7 @@ impl<S> Procedures<S> {
     pub fn handle<H, Args, P>(self, handler: H) -> Self
     where
         H: Handler<Args, S, Request = P> + Send + Sync + 'static,
-        P: DeserializeOwned + Procedure + Read,
+        P: DeserializeOwned + Procedure + Input,
         P::Output: Output,
         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S: Clone + Send + Sync + 'static,
@@ -78,7 +78,7 @@ impl<S> Procedures<S> {
     pub fn handle_with<S2, H, Args, P>(mut self, state: S2, handler: H) -> Self
     where
         H: Handler<Args, S2, Request = P> + Send + Sync + 'static,
-        P: DeserializeOwned + Procedure + Read,
+        P: DeserializeOwned + Procedure + Input,
         P::Output: Output,
         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S2: Clone + Send + Sync + 'static,
@@ -116,10 +116,10 @@ impl<S> Procedures<S> {
     }
 
     /// `P`'s path, crate first, so two modules can share a type name.
-    fn name<P: Read>() -> String {
+    fn name<P: Input>() -> String {
         let Shape::Reference(named) = P::__SHAPE else {
             // private api, we only support deriving
-            unreachable!("`{}` implements `Read` by hand", type_name::<P>())
+            unreachable!("`{}` implements `Input` by hand", type_name::<P>())
         };
         let named = named();
         format!("{}::{}", named.module_path, named.name)

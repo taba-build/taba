@@ -1,12 +1,12 @@
 //! A handler whose request comes before its state.
 
 use serde::Deserialize;
-use taba::{Read, rpc::{Never, Procedure, Procedures, State}};
+use taba::{Input, rpc::{Never, Procedure, Procedures, State}};
 
 #[derive(Clone)]
 struct Game;
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 struct Buy;
 
 impl Procedure for Buy {

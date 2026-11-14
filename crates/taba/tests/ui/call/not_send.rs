@@ -3,9 +3,9 @@
 use std::rc::Rc;
 
 use serde::Deserialize;
-use taba::{Read, rpc::{Never, Procedure, Procedures}};
+use taba::{Input, rpc::{Never, Procedure, Procedures}};
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 struct Buy;
 
 impl Procedure for Buy {

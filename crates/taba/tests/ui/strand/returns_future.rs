@@ -1,9 +1,9 @@
 //! A strand's handler that returns a future.
 
 use serde::Deserialize;
-use taba::{Read, rpc::{Never, Procedure, Procedures, Strand}};
+use taba::{Input, rpc::{Never, Procedure, Procedures, Strand}};
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 struct Ore;
 
 impl Procedure for Ore {

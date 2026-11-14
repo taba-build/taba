@@ -3,7 +3,7 @@
 use std::prelude::rust_2024::*;
 
 use serde::{Deserialize, Serialize};
-use taba_derive::Read;
+use taba_derive::Input;
 
 use super::{Never, Procedure, Strand};
 
@@ -12,12 +12,12 @@ pub(super) struct Game {
     pub(super) drills: u32,
 }
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 pub(super) struct Buy {
     pub(super) generator: Generator,
 }
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 pub(super) enum Generator {
     Drill,
     Furnace,
@@ -33,7 +33,7 @@ impl Procedure for Buy {
     type Error = BuyError;
 }
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 pub(super) struct Sell;
 
 impl Procedure for Sell {
@@ -41,7 +41,7 @@ impl Procedure for Sell {
     type Error = Never;
 }
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 pub(super) struct Hire;
 
 impl Procedure for Hire {
@@ -49,7 +49,7 @@ impl Procedure for Hire {
     type Error = Never;
 }
 
-#[derive(Deserialize, Read)]
+#[derive(Deserialize, Input)]
 pub(super) struct Ore;
 
 impl Procedure for Ore {

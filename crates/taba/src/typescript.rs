@@ -1,6 +1,6 @@
 //! What serde_json writes and reads, as TypeScript sees it.
 //!
-//! [`Written`] is what TypeScript receives, and [`Read`] is what it may send. Each impl holds a
+//! [`Output`] is what TypeScript receives, and [`Input`] is what it may send. Each impl holds a
 //! [`Shape`] as const data. A derived type is one [`Named`] static that other shapes refer to.
 //! Only the derives and the impls here build shapes, so they're hidden.
 //!
@@ -16,7 +16,7 @@ use alloc::{
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::{Named, Object, Property, Read, Shape, Variant, Written};
+    pub use super::{Input, Named, Object, Output, Property, Shape, Variant};
 }
 
 /// One JSON shape.
@@ -126,22 +126,22 @@ pub struct Named {
 
 /// What serde_json writes for `Self`.
 #[diagnostic::on_unimplemented(
-    note = "derive `Written` alongside `Serialize`",
+    note = "derive `Output` alongside `Serialize`",
     note = "a type from another crate takes `#[taba(with = \"...\")]` on its field",
     note = "a 64-bit integer has no exact JavaScript number"
 )]
-pub trait Written {
+pub trait Output {
     #[doc(hidden)]
     const __SHAPE: Shape;
 }
 
 /// What serde_json reads as `Self`.
 #[diagnostic::on_unimplemented(
-    note = "derive `Read` alongside `Deserialize`",
+    note = "derive `Input` alongside `Deserialize`",
     note = "a type from another crate takes `#[taba(with = \"...\")]` on its field",
     note = "a 64-bit integer has no exact JavaScript number"
 )]
-pub trait Read {
+pub trait Input {
     #[doc(hidden)]
     const __SHAPE: Shape;
 
@@ -152,11 +152,11 @@ pub trait Read {
 
 macro_rules! both {
     ($shape:expr, $($ty:ty),+) => {$(
-        impl Written for $ty {
+        impl Output for $ty {
             const __SHAPE: Shape = $shape;
         }
 
-        impl Read for $ty {
+        impl Input for $ty {
             const __SHAPE: Shape = $shape;
         }
     )+};
@@ -170,11 +170,11 @@ both!(Shape::Null, ());
 macro_rules! float {
     ($($ty:ty),+) => {$(
         /// Nullable because JSON doesn't represent `NaN` or infinity.
-        impl Written for $ty {
+        impl Output for $ty {
             const __SHAPE: Shape = Shape::Union(&[Shape::Number, Shape::Null]);
         }
 
-        impl Read for $ty {
+        impl Input for $ty {
             const __SHAPE: Shape = Shape::Number;
         }
     )+};
@@ -182,43 +182,43 @@ macro_rules! float {
 
 float!(f32, f64);
 
-impl Written for str {
+impl Output for str {
     const __SHAPE: Shape = Shape::String;
 }
 
-impl<T: Written + ?Sized> Written for &T {
+impl<T: Output + ?Sized> Output for &T {
     const __SHAPE: Shape = T::__SHAPE;
 }
 
-impl<T: Written + ?Sized> Written for Box<T> {
+impl<T: Output + ?Sized> Output for Box<T> {
     const __SHAPE: Shape = T::__SHAPE;
 }
 
-impl<T: Read> Read for Box<T> {
+impl<T: Input> Input for Box<T> {
     const __SHAPE: Shape = T::__SHAPE;
     const __OPTIONAL: bool = T::__OPTIONAL;
 }
 
-impl<T: Written> Written for Option<T> {
+impl<T: Output> Output for Option<T> {
     const __SHAPE: Shape = Shape::Union(&[T::__SHAPE, Shape::Null]);
 }
 
-impl<T: Read> Read for Option<T> {
+impl<T: Input> Input for Option<T> {
     const __SHAPE: Shape = Shape::Union(&[T::__SHAPE, Shape::Null]);
     const __OPTIONAL: bool = true;
 }
 
-impl<T: Written> Written for [T] {
+impl<T: Output> Output for [T] {
     const __SHAPE: Shape = Shape::Array(&T::__SHAPE);
 }
 
 macro_rules! generic {
     ($shape:expr, $($ty:ident),+) => {$(
-        impl<T: Written> Written for $ty<T> {
+        impl<T: Output> Output for $ty<T> {
             const __SHAPE: Shape = $shape;
         }
 
-        impl<T: Read> Read for $ty<T> {
+        impl<T: Input> Input for $ty<T> {
             const __SHAPE: Shape = $shape;
         }
     )+};
@@ -226,22 +226,22 @@ macro_rules! generic {
 
 generic!(Shape::Array(&T::__SHAPE), Vec, BTreeSet);
 
-impl<T: Written, const N: usize> Written for [T; N] {
+impl<T: Output, const N: usize> Output for [T; N] {
     const __SHAPE: Shape = Shape::Tuple(&[T::__SHAPE; N]);
 }
 
-impl<T: Read, const N: usize> Read for [T; N] {
+impl<T: Input, const N: usize> Input for [T; N] {
     const __SHAPE: Shape = Shape::Tuple(&[T::__SHAPE; N]);
 }
 
 macro_rules! tuples {
     () => {};
     ($first:ident $(, $rest:ident)*) => {
-        impl<$first: Written $(, $rest: Written)*> Written for ($first, $($rest),*) {
+        impl<$first: Output $(, $rest: Output)*> Output for ($first, $($rest),*) {
             const __SHAPE: Shape = Shape::Tuple(&[$first::__SHAPE $(, $rest::__SHAPE)*]);
         }
 
-        impl<$first: Read $(, $rest: Read)*> Read for ($first, $($rest),*) {
+        impl<$first: Input $(, $rest: Input)*> Input for ($first, $($rest),*) {
             const __SHAPE: Shape = Shape::Tuple(&[$first::__SHAPE $(, $rest::__SHAPE)*]);
         }
 
@@ -265,11 +265,11 @@ key!(String, char, bool);
 key!(u8, u16, u32, u64, u128, usize);
 key!(i8, i16, i32, i64, i128, isize);
 
-impl<K: Key, V: Written> Written for BTreeMap<K, V> {
+impl<K: Key, V: Output> Output for BTreeMap<K, V> {
     const __SHAPE: Shape = Shape::Record(&V::__SHAPE);
 }
 
-impl<K: Key, V: Read> Read for BTreeMap<K, V> {
+impl<K: Key, V: Input> Input for BTreeMap<K, V> {
     const __SHAPE: Shape = Shape::Record(&V::__SHAPE);
 }
 
@@ -278,21 +278,21 @@ impl<K: Key, V: Read> Read for BTreeMap<K, V> {
 mod std_collections {
     use std::collections::{HashMap, HashSet};
 
-    use super::{Key, Read, Shape, Written};
+    use super::{Input, Key, Output, Shape};
 
-    impl<T: Written, S> Written for HashSet<T, S> {
+    impl<T: Output, S> Output for HashSet<T, S> {
         const __SHAPE: Shape = Shape::Array(&T::__SHAPE);
     }
 
-    impl<T: Read, S> Read for HashSet<T, S> {
+    impl<T: Input, S> Input for HashSet<T, S> {
         const __SHAPE: Shape = Shape::Array(&T::__SHAPE);
     }
 
-    impl<K: Key, V: Written, S> Written for HashMap<K, V, S> {
+    impl<K: Key, V: Output, S> Output for HashMap<K, V, S> {
         const __SHAPE: Shape = Shape::Record(&V::__SHAPE);
     }
 
-    impl<K: Key, V: Read, S> Read for HashMap<K, V, S> {
+    impl<K: Key, V: Input, S> Input for HashMap<K, V, S> {
         const __SHAPE: Shape = Shape::Record(&V::__SHAPE);
     }
 }

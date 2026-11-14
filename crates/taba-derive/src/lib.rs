@@ -1,7 +1,7 @@
 //! Taba's derives.
 //!
-//! [`Written`](macro@Written) describes what `#[derive(Serialize)]` writes as a TypeScript type,
-//! and [`Read`](macro@Read) what `#[derive(Deserialize)]` reads. Both read serde's `#[serde(...)]`
+//! [`Output`](macro@Output) describes what `#[derive(Serialize)]` writes as a TypeScript type,
+//! and [`Input`](macro@Input) what `#[derive(Deserialize)]` reads. Both read serde's `#[serde(...)]`
 //! attributes with serde's own parser, `serde_derive_internals`.
 //!
 //! # Attributes
@@ -24,8 +24,8 @@
 //! * `skip` on a newtype's field (a newtype is its one value)
 //!
 //! `#[taba(with = "Type")]` names a type with the same JSON, for both directions. Its
-//! `serialize_with` and `deserialize_with` keys do the same for [`Written`](macro@Written) or
-//! [`Read`](macro@Read) alone.
+//! `serialize_with` and `deserialize_with` keys do the same for [`Output`](macro@Output) or
+//! [`Input`](macro@Input) alone.
 //!
 //! Use it on a field that has serde's `with`, `serialize_with` or `deserialize_with`, or whose type
 //! is from another crate. Use it on a type whose serde impls you wrote by hand.
@@ -50,28 +50,28 @@ use serde_derive_internals::{
 use syn::{Attribute, DeriveInput, LitStr, ext::IdentExt, parse_macro_input};
 
 /// Describes what `#[derive(Serialize)]` writes, from the same [attributes](crate#attributes).
-#[proc_macro_derive(Written, attributes(serde, taba))]
-pub fn written(input: TokenStream) -> TokenStream {
-    derive(Direction::Written, parse_macro_input!(input))
+#[proc_macro_derive(Output, attributes(serde, taba))]
+pub fn output(input: TokenStream) -> TokenStream {
+    derive(Direction::Output, parse_macro_input!(input))
 }
 
 /// Describes what `#[derive(Deserialize)]` reads, from the same [attributes](crate#attributes).
-#[proc_macro_derive(Read, attributes(serde, taba))]
-pub fn read(input: TokenStream) -> TokenStream {
-    derive(Direction::Read, parse_macro_input!(input))
+#[proc_macro_derive(Input, attributes(serde, taba))]
+pub fn input(input: TokenStream) -> TokenStream {
+    derive(Direction::Input, parse_macro_input!(input))
 }
 
 #[derive(Copy, Clone)]
 enum Direction {
-    Written,
-    Read,
+    Output,
+    Input,
 }
 
 impl From<Direction> for Derive {
     fn from(value: Direction) -> Self {
         match value {
-            Direction::Written => Self::Serialize,
-            Direction::Read => Self::Deserialize,
+            Direction::Output => Self::Serialize,
+            Direction::Input => Self::Deserialize,
         }
     }
 }
@@ -84,74 +84,74 @@ impl Direction {
 
     fn optional(self, ty: impl ToTokens) -> Option<Tokens> {
         match self {
-            Direction::Written => None,
-            Direction::Read => Some(quote!(<#ty as _taba::Read>::__OPTIONAL)),
+            Direction::Output => None,
+            Direction::Input => Some(quote!(<#ty as _taba::Input>::__OPTIONAL)),
         }
     }
 
     fn trait_path(self) -> Tokens {
         match self {
-            Direction::Written => quote!(_taba::Written),
-            Direction::Read => quote!(_taba::Read),
+            Direction::Output => quote!(_taba::Output),
+            Direction::Input => quote!(_taba::Input),
         }
     }
 
     fn with_key(self) -> &'static str {
         match self {
-            Direction::Written => "serialize_with",
-            Direction::Read => "deserialize_with",
+            Direction::Output => "serialize_with",
+            Direction::Input => "deserialize_with",
         }
     }
 
     fn name(self, name: &MultiName) -> String {
         match self {
-            Direction::Written => name.serialize_name().value.clone(),
-            Direction::Read => name.deserialize_name().value.clone(),
+            Direction::Output => name.serialize_name().value.clone(),
+            Direction::Input => name.deserialize_name().value.clone(),
         }
     }
 
     fn converted(self, container: &attr::Container) -> Option<&syn::Type> {
         match self {
-            Direction::Written => container.type_into(),
-            Direction::Read => container.type_from().or(container.type_try_from()),
+            Direction::Output => container.type_into(),
+            Direction::Input => container.type_from().or(container.type_try_from()),
         }
     }
 
     fn skips(self, field: &attr::Field) -> bool {
         match self {
-            Direction::Written => field.skip_serializing(),
-            Direction::Read => field.skip_deserializing(),
+            Direction::Output => field.skip_serializing(),
+            Direction::Input => field.skip_deserializing(),
         }
     }
 
     fn skips_variant(self, variant: &attr::Variant) -> bool {
         match self {
-            Direction::Written => variant.skip_serializing(),
-            Direction::Read => variant.skip_deserializing(),
+            Direction::Output => variant.skip_serializing(),
+            Direction::Input => variant.skip_deserializing(),
         }
     }
 
     /// Whether `skip_serializing_if` may leave the field out.
     fn skips_if(self, field: &attr::Field) -> bool {
         match self {
-            Direction::Written => field.skip_serializing_if().is_some(),
-            Direction::Read => false,
+            Direction::Output => field.skip_serializing_if().is_some(),
+            Direction::Input => false,
         }
     }
 
     /// Whether serde's `default` fills in the field when its key is missing.
     fn defaults(self, container: &attr::Container, field: &attr::Field) -> bool {
         match self {
-            Direction::Written => false,
-            Direction::Read => !field.default().is_none() || !container.default().is_none(),
+            Direction::Output => false,
+            Direction::Input => !field.default().is_none() || !container.default().is_none(),
         }
     }
 
     /// Whether serde promises to reject keys the type doesn't declare.
     fn closed(self, container: &attr::Container) -> bool {
         match self {
-            Direction::Written => false,
-            Direction::Read => container.deny_unknown_fields(),
+            Direction::Output => false,
+            Direction::Input => container.deny_unknown_fields(),
         }
     }
 
@@ -159,22 +159,22 @@ impl Direction {
     fn struct_tag(self, container: &attr::Container) -> Option<&str> {
         let TagType::Internal { tag } = container.tag() else { return None };
         match self {
-            Direction::Written => Some(tag),
-            Direction::Read => None,
+            Direction::Output => Some(tag),
+            Direction::Input => None,
         }
     }
 
     fn hides(self, field: &attr::Field) -> bool {
         match self {
-            Direction::Written => field.serialize_with().is_some(),
-            Direction::Read => field.deserialize_with().is_some(),
+            Direction::Output => field.serialize_with().is_some(),
+            Direction::Input => field.deserialize_with().is_some(),
         }
     }
 
     fn hides_variant(self, variant: &attr::Variant) -> bool {
         match self {
-            Direction::Written => variant.serialize_with().is_some(),
-            Direction::Read => variant.deserialize_with().is_some(),
+            Direction::Output => variant.serialize_with().is_some(),
+            Direction::Input => variant.deserialize_with().is_some(),
         }
     }
 }
