@@ -10,6 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::value::RawValue;
 
 use super::SessionId;
+use crate::typescript::{self, Shape};
 
 /// A [Safe JavaScript Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger#description) <code>2<sup>53</sup> – 1</code>.
 ///
@@ -40,6 +41,14 @@ impl<'de> Deserialize<'de> for SafeInteger {
             x => Err(de::Error::custom(format_args!("{x} > `Number.MAX_SAFE_INTEGER`"))),
         }
     }
+}
+
+impl typescript::Output for SafeInteger {
+    const __SHAPE: Shape = Shape::Number;
+}
+
+impl typescript::Input for SafeInteger {
+    const __SHAPE: Shape = Shape::Number;
 }
 
 /// Requests from TypeScript.
