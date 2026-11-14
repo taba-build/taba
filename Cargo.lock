@@ -4359,6 +4359,8 @@ name = "taba-build"
 version = "0.0.1"
 dependencies = [
  "insta",
+ "serde",
+ "taba",
  "taba-rolldown",
  "tokio",
 ]

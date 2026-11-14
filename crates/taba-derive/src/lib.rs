@@ -76,6 +76,15 @@ impl From<Direction> for Derive {
     }
 }
 
+impl ToTokens for Direction {
+    fn to_tokens(&self, tokens: &mut Tokens) {
+        tokens.extend(match self {
+            Direction::Output => quote!(_taba::Direction::Output),
+            Direction::Input => quote!(_taba::Direction::Input),
+        });
+    }
+}
+
 impl Direction {
     fn shape(self, ty: impl ToTokens) -> Tokens {
         let path = self.trait_path();
@@ -226,6 +235,7 @@ impl Expander<'_> {
         let ident = &container.ident;
         let name = ident.unraw().to_string();
         let docs = docs(&container.original.attrs);
+        let direction = self.direction;
         let shape = self.shape(&source);
         let path = self.direction.trait_path();
         let optional = self.optional(&source);
@@ -237,6 +247,7 @@ impl Expander<'_> {
                     module_path: ::core::module_path!(),
                     name: #name,
                     docs: #docs,
+                    direction: #direction,
                     file: ::core::file!(),
                     line: ::core::line!(),
                     shape: #shape,

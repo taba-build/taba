@@ -12,6 +12,11 @@ readme.workspace = true
 [package.metadata.docs.rs]
 all-features = true
 
+[features]
+default = ["taba"]
+# features taba uses are enabled here, rather than complicate the pin tool
+taba = ["oxc/codegen"]
+
 [lints]
 workspace = true
 

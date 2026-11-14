@@ -16,7 +16,7 @@ use alloc::{
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::{Input, Named, Object, Output, Property, Shape, Variant};
+    pub use super::{Direction, Input, Named, Object, Output, Property, Shape, Variant};
 }
 
 /// One JSON shape.
@@ -34,7 +34,7 @@ pub enum Shape {
     /// `null`.
     Null,
 
-    /// No value, such as an enum without variants.
+    /// No value.
     Never,
 
     /// A string literal type.
@@ -108,6 +108,9 @@ pub struct Named {
     /// Each `///` line is one value, still led by the space after the slashes.
     pub docs: &'static [&'static str],
 
+    /// Which derive built it.
+    pub direction: Direction,
+
     /// Where it derives, from [`file!`].
     pub file: &'static str,
 
@@ -122,6 +125,16 @@ pub struct Named {
 
     /// Its shape.
     pub shape: Shape,
+}
+
+/// Which derive built a [`Named`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Direction {
+    /// [`Output`]'s.
+    Output,
+
+    /// [`Input`]'s.
+    Input,
 }
 
 /// What serde_json writes for `Self`.

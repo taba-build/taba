@@ -14,17 +14,25 @@ all-features = true
 
 [features]
 bundle = ["dep:taba-rolldown", "dep:tokio"]
+typescript = ["dep:taba", "dep:taba-rolldown"]
 
 [dependencies]
+taba = { workspace = true, optional = true }
 taba-rolldown = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }
 
 [dev-dependencies]
 insta.workspace = true
+serde = { workspace = true, features = ["derive"] }
+taba = { workspace = true, features = ["derive"] }
 
 [[test]]
 name = "bundle"
 required-features = ["bundle"]
+
+[[test]]
+name = "typescript"
+required-features = ["typescript"]
 
 [lints]
 workspace = true
