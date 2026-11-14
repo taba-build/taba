@@ -2,9 +2,10 @@
 
 use std::{
     fs,
-    io::{self, Error},
+    io::{self, Error, Write},
     path::Path,
-    process::Command,
+    process::{Command, Stdio},
+    thread,
 };
 
 use taba::{
@@ -22,21 +23,43 @@ fn main() -> io::Result<()> {
     ];
 
     for (path, contents) in &files {
-        write(Path::new(path), contents)?;
+        let path = Path::new(path);
+        write(path, &formatted(path, contents)?)?;
     }
     let attributes = files.map(|(path, _)| format!("{path} linguist-generated\n")).concat();
-    fs::write(".gitattributes", format!("# written by `cargo xtask generate`\n{attributes}"))
+    let attributes = format!("# written by `cargo xtask generate`\n{attributes}");
+    write(Path::new(".gitattributes"), attributes.as_bytes())
 }
 
-/// Writes formatted `contents` to `path`.
-fn write(path: &Path, contents: &str) -> io::Result<()> {
-    fs::write(path, contents)?;
+/// Writes `contents` to `path` if they changed.
+///
+/// Cargo rebuilds on a new mtime, even with the same bytes.
+fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
+    if fs::read(path).is_ok_and(|current| current == contents) {
+        return Ok(());
+    }
+    fs::write(path, contents)
+}
+
+/// `contents` formatted by oxfmt for `path`.
+fn formatted(path: &Path, contents: &str) -> io::Result<Vec<u8>> {
     let mut oxfmt = Command::new("pnpm");
-    oxfmt.args(["--silent", "run", "fmt"]).arg(path);
-    let status = oxfmt.status()?;
-    if status.success() {
-        Ok(())
+    oxfmt.args(["--silent", "run", "fmt", "--stdin-filepath"]).arg(path);
+    let mut child = oxfmt.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()?;
+    let mut stdin = child.stdin.take().expect("stdin is piped");
+
+    // on its own thread, see https://doc.rust-lang.org/std/process/index.html#handling-io
+    let (output, fed) = thread::scope(|scope| {
+        let feed = scope.spawn(move || stdin.write_all(contents.as_bytes()));
+        let output = child.wait_with_output();
+        (output, feed.join().expect("writing stdin doesn't panic"))
+    });
+
+    let output = output?;
+    if output.status.success() {
+        fed?;
+        Ok(output.stdout)
     } else {
-        Err(Error::other(format!("{oxfmt:?} failed with {status}")))
+        Err(Error::other(format!("{oxfmt:?} failed with {}", output.status)))
     }
 }
