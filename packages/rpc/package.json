@@ -1,7 +1,7 @@
 {
   "name": "@taba-build/rpc",
   "version": "0.0.1",
-  "description": "RPC Runtime for Taba, a Rolldown-based TypeScript bundler for Rust",
+  "description": "RPC Runtime for Taba, a Rolldown-based TypeScript bundler for Rust using serde",
   "license": "Apache-2.0 OR MIT",
   "repository": {
     "type": "git",
