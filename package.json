@@ -1,12 +1,17 @@
 {
   "private": true,
+  "type": "module",
+  "imports": {
+    "#rpc/*": "./packages/rpc/src/*"
+  },
   "scripts": {
     "fmt": "oxfmt",
     "lint": "oxlint --deny-warnings",
-    "typecheck": "pnpm -r run typecheck",
+    "typecheck": "pnpm -r run typecheck && tsc -p crates/taba-tauri",
     "build": "pnpm -r run build"
   },
   "devDependencies": {
+    "@tauri-apps/api": "^2.12.4",
     "oxfmt": "^0.78.0",
     "oxlint": "^1.93.0",
     "typescript": "^7.0.2"

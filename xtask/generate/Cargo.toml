@@ -11,7 +11,7 @@ version = "0.0.0"
 
 [dependencies]
 taba = { workspace = true, features = ["rpc"] }
-taba-build = { workspace = true, features = ["typescript"] }
+taba-build = { workspace = true, features = ["bundle", "typescript"] }
 
 [lints]
 workspace = true

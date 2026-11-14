@@ -8,6 +8,7 @@ use taba::rpc::{Router, Sessions};
 use tauri::{
     App, Builder, Context, Runtime, WindowEvent, async_runtime,
     ipc::{Invoke, InvokeBody, InvokeError},
+    plugin::{self, TauriPlugin},
 };
 
 /// A [`tauri::Builder`] answering Taba, wrapped to protect the invoke handler.
@@ -34,6 +35,7 @@ impl<R: Runtime> WithTaba<R> {
         let sessions = Arc::new(Sessions::new(router, runtime));
         let destroyed = Arc::clone(&sessions);
         let builder = builder
+            .plugin(injected())
             .on_window_event(move |window, event| {
                 if let WindowEvent::Destroyed = event {
                     destroyed.end(window.label());
@@ -90,6 +92,11 @@ impl<R: Runtime> BuilderExt<R> for Builder<R> {
     {
         WithTaba::with_fallback(self, router, fallback)
     }
+}
+
+/// A minimal plugin for the init script.
+fn injected<R: Runtime>() -> TauriPlugin<R> {
+    plugin::Builder::new("taba").js_init_script(include_str!("injected.js")).build()
 }
 
 /// Answers Taba commands from `sessions`, using webview labels for the session address.

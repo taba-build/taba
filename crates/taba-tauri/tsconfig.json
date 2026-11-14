@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "node18",
+    "target": "es2021",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src"]
+}

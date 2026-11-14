@@ -11,12 +11,21 @@ use taba::{
     __private::rpc::Batch,
     rpc::{Frame, SessionId},
 };
-use taba_build::Declarations;
+use taba_build::{Declarations, bundle};
 
 fn main() -> io::Result<()> {
     let wire = Declarations::new("taba").output::<Frame>().input::<Batch>().both::<SessionId>();
+    let injected = bundle("crates/taba-tauri/src/injected.ts").map_err(Error::other)?;
+    let files = [
+        ("crates/taba-tauri/src/injected.js", injected),
+        ("packages/rpc/src/taba.ts", wire.to_string()),
+    ];
 
-    write(Path::new("packages/rpc/src/taba.ts"), &wire.to_string())
+    for (path, contents) in &files {
+        write(Path::new(path), contents)?;
+    }
+    let attributes = files.map(|(path, _)| format!("{path} linguist-generated\n")).concat();
+    fs::write(".gitattributes", format!("# written by `cargo xtask generate`\n{attributes}"))
 }
 
 /// Writes formatted `contents` to `path`.

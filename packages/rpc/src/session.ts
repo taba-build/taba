@@ -1,29 +1,34 @@
 import type { Result } from "./index.js";
+import type { serde_json } from "./taba.js";
 
 /** The `globalThis` key a backend sets the {@link Session} on. */
 export const SESSION = "__taba_session__";
 
 /** The page's half of a taba session. */
 export type Session = {
-  call<T>(name: string, request: unknown, options?: { signal?: AbortSignal }): Promise<T>;
-
-  tryCall<T, E>(
+  call: <T>(
     name: string,
-    request: unknown,
+    request: serde_json.value.Value.Input,
     options?: { signal?: AbortSignal },
-  ): Promise<Result<T, E>>;
+  ) => Promise<T>;
 
-  subscribe<T>(
+  tryCall: <T, E>(
     name: string,
-    request: unknown,
-    signal: AbortSignal,
-  ): AsyncGenerator<T, void, undefined>;
+    request: serde_json.value.Value.Input,
+    options?: { signal?: AbortSignal },
+  ) => Promise<Result<T, E>>;
 
-  trySubscribe<T, E>(
+  subscribe: <T>(
     name: string,
-    request: unknown,
+    request: serde_json.value.Value.Input,
     signal: AbortSignal,
-  ): AsyncGenerator<Result<T, E>, void, undefined>;
+  ) => AsyncGenerator<T, void, undefined>;
+
+  trySubscribe: <T, E>(
+    name: string,
+    request: serde_json.value.Value.Input,
+    signal: AbortSignal,
+  ) => AsyncGenerator<Result<T, E>, void, undefined>;
 };
 
 /**
