@@ -1,0 +1,9 @@
+{
+  "ignorePatterns": [".*/", "!.github/"],
+  "overrides": [
+    {
+      "files": ["**/*.md"],
+      "options": { "proseWrap": "always" },
+    },
+  ],
+}
