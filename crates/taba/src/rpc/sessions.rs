@@ -19,9 +19,12 @@ use super::{
     Error, Router,
     wire::{Batch, Frame, Kind, Message, Rejection, SafeInteger},
 };
+use crate::{Input, Output};
 
 /// A session's id.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, Output, Input,
+)]
 pub struct SessionId(SafeInteger);
 
 /// Sessions, each at an address, answered by one [`Router`].

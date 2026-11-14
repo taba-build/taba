@@ -3,8 +3,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
-#[cfg(test)]
-extern crate self as taba; // ease testing generated code from our tests
+extern crate self as taba; // our own types also use derives, which call ::taba
 #[cfg(feature = "std")]
 extern crate std;
 

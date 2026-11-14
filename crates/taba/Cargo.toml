@@ -14,7 +14,7 @@ all-features = true
 
 [features]
 derive = ["dep:taba-derive"]
-rpc = ["std", "dep:futures-util", "dep:serde", "dep:tokio", "dep:tokio-util"]
+rpc = ["derive", "std", "dep:futures-util", "dep:serde", "dep:tokio", "dep:tokio-util"]
 std = []
 
 [dependencies]
@@ -33,7 +33,6 @@ taba-derive.workspace = true
 [dev-dependencies]
 insta.workspace = true
 rustversion.workspace = true
-taba-derive.workspace = true
 tokio = { workspace = true, features = ["test-util"] }
 trybuild.workspace = true
 

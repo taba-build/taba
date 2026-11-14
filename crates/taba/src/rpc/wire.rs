@@ -10,7 +10,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 use serde_json::value::RawValue;
 
 use super::SessionId;
-use crate::typescript::{self, Shape};
+use crate::{Input, Output, typescript::Shape};
 
 /// A [Safe JavaScript Number](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Number/isSafeInteger#description) <code>2<sup>53</sup> – 1</code>.
 ///
@@ -43,18 +43,18 @@ impl<'de> Deserialize<'de> for SafeInteger {
     }
 }
 
-impl typescript::Output for SafeInteger {
+impl Output for SafeInteger {
     const __SHAPE: Shape = Shape::Number;
 }
 
-impl typescript::Input for SafeInteger {
+impl Input for SafeInteger {
     const __SHAPE: Shape = Shape::Number;
 }
 
 /// Requests from TypeScript.
 ///
 /// `value` comes last for [`RawValue`]'s deferred parsing.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Input)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
 pub enum Message {
     /// Answered once.
@@ -71,7 +71,7 @@ pub enum Message {
 }
 
 /// A session's [`Message`]s, in the order TypeScript sent them.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Input)]
 pub(crate) struct Batch(pub(crate) SessionId, pub(crate) Vec<Message>);
 
 /// What a poll returns.
@@ -86,7 +86,7 @@ pub struct Frame {
 }
 
 /// What a frame tells TypeScript.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Output)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
 pub enum Kind {
     /// A handler's `Ok`.
@@ -120,7 +120,7 @@ impl Kind {
 }
 
 /// Why [`taba`](crate) rejected a request.
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Output)]
 #[serde(tag = "kind", content = "value", rename_all = "lowercase")]
 pub enum Rejection {
     /// No procedure by this name answers the request.

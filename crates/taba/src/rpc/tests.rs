@@ -3,9 +3,9 @@
 use std::prelude::rust_2024::*;
 
 use serde::{Deserialize, Serialize};
-use taba_derive::Input;
 
 use super::{Never, Procedure, Strand};
+use crate::Input;
 
 #[derive(Clone)]
 pub(super) struct Game {

@@ -1,6 +1,6 @@
 //! What rustc tells an app whose handler doesn't fit its procedure.
 
-#[cfg(all(feature = "rpc", feature = "derive"))]
+#[cfg(feature = "rpc")]
 #[rustversion::attr(not(beta), ignore = "requires beta")]
 #[test]
 fn handler_mistakes_name_their_cause() {
