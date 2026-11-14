@@ -177,8 +177,6 @@ async function polls() {
       case "reject":
         waiter?.reject(frame.value);
         break;
-      default:
-        frame satisfies never;
     }
   }
 }

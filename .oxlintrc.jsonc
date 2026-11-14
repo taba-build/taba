@@ -1,0 +1,9 @@
+{
+  "options": {
+    "denyWarnings": true,
+    "typeAware": true,
+  },
+  "rules": {
+    "typescript/switch-exhaustiveness-check": "error",
+  },
+}
