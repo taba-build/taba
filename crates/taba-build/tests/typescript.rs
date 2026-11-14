@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
+use serde_json::value::RawValue;
 use taba::{Input, Output};
 use taba_build::Declarations;
 
@@ -33,6 +34,9 @@ struct Mine<'a> {
     deeper: Option<Box<Mine<'a>>>,
 
     running: bool,
+
+    /// The last survey, as the surveyor wrote it.
+    survey: serde_json::Value,
 
     #[serde(rename = "gift-note")]
     gift_note: &'a str,
@@ -65,6 +69,9 @@ enum Buy {
         /// How many beyond the first, none when absent.
         #[serde(default)]
         extra: u32,
+
+        /// A note for the shop, kept as sent.
+        note: Box<RawValue>,
     },
 }
 
@@ -74,6 +81,16 @@ fn every_shape_kind() {
         Declarations::new("typescript").output::<Mine>().output::<Unreachable>().input::<Buy>();
     insta::assert_snapshot!(declarations, @r#"
     import type * as $ from "./taba.js";
+    export namespace serde_json.value {
+    	export type Value = null | boolean | number | string | $.serde_json.value.Value[] | {
+    		[key: string]: $.serde_json.value.Value;
+    	};
+    	export namespace Value {
+    		export type Input = null | boolean | number | string | $.serde_json.value.Value.Input[] | {
+    			[key: string]: $.serde_json.value.Value.Input;
+    		};
+    	}
+    }
     export namespace crate {
     	export namespace Buy {
     		/** Buys generators. */
@@ -81,6 +98,8 @@ fn every_shape_kind() {
     			generator: $.crate.Generator.Input;
     			/** How many beyond the first, none when absent. */
     			extra?: number;
+    			/** A note for the shop, kept as sent. */
+    			note: $.serde_json.value.Value.Input;
     		};
     	}
     	/** A machine that makes ore. */
@@ -106,6 +125,8 @@ fn every_shape_kind() {
     		/** The level below, dug on a `*\/5` schedule. */
     		deeper: $.crate.Mine | null;
     		running: boolean;
+    		/** The last survey, as the surveyor wrote it. */
+    		survey: $.serde_json.value.Value;
     		"gift-note": string;
     	};
     	export type Unreachable = never;

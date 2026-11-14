@@ -4360,6 +4360,7 @@ version = "0.0.1"
 dependencies = [
  "insta",
  "serde",
+ "serde_json",
  "taba",
  "taba-rolldown",
  "tokio",

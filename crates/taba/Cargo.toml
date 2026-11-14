@@ -14,21 +14,14 @@ all-features = true
 
 [features]
 derive = ["dep:taba-derive"]
-rpc = [
-  "std",
-  "dep:futures-util",
-  "dep:serde",
-  "serde_json/raw_value",
-  "dep:tokio",
-  "dep:tokio-util",
-]
+rpc = ["std", "dep:futures-util", "dep:serde", "dep:tokio", "dep:tokio-util"]
 std = []
 
 [dependencies]
 futures-util = { workspace = true, optional = true, features = ["std"] }
 serde = { workspace = true, optional = true, features = ["alloc", "derive"] }
 serde_core.workspace = true
-serde_json = { workspace = true, features = ["alloc"] }
+serde_json = { workspace = true, features = ["alloc", "raw_value"] }
 taba-derive = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["rt", "sync"] }
 tokio-util = { workspace = true, optional = true, features = ["join-map"] }

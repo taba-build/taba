@@ -264,7 +264,7 @@ macro_rules! tuples {
 
 tuples!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
 
-/// A map key [`serde_json`] writes as a string.
+/// A map key [`serde_json`](::serde_json) writes as a string.
 ///
 /// Integer keys are exact as digit strings, including 64 and 128 bit.
 #[diagnostic::on_unimplemented(note = "a key is a string, `char`, `bool` or integer")]
@@ -286,9 +286,58 @@ impl<K: Key, V: Input> Input for BTreeMap<K, V> {
     const __SHAPE: Shape = Shape::Record(&V::__SHAPE);
 }
 
-/// std's collections.
+mod serde_json {
+    use ::serde_json::{Map, Number, Value, value::RawValue};
+
+    use super::*;
+
+    both!(Shape::Number, Number);
+
+    macro_rules! value {
+        ($trait:ident) => {
+            impl $trait for Value {
+                const __SHAPE: Shape = Shape::Reference(|| &Named {
+                    docs: &[],
+                    direction: Direction::$trait,
+                    file: file!(),
+                    line: line!(),
+                    module_path: "serde_json::value",
+                    name: "Value",
+                    shape: Shape::Union(&[
+                        Shape::Null,
+                        Shape::Boolean,
+                        Shape::Number,
+                        Shape::String,
+                        Shape::Array(&<Value as $trait>::__SHAPE),
+                        Shape::Record(&<Value as $trait>::__SHAPE),
+                    ]),
+                });
+            }
+
+            impl $trait for Map<String, Value> {
+                const __SHAPE: Shape = Shape::Record(&<Value as $trait>::__SHAPE);
+            }
+        };
+    }
+
+    value!(Output);
+    value!(Input);
+
+    impl Output for RawValue {
+        const __SHAPE: Shape = <Value as Output>::__SHAPE;
+    }
+
+    impl Input for Box<RawValue> {
+        const __SHAPE: Shape = <Value as Input>::__SHAPE;
+    }
+
+    impl Input for &RawValue {
+        const __SHAPE: Shape = <Value as Input>::__SHAPE;
+    }
+}
+
 #[cfg(feature = "std")]
-mod std_collections {
+mod std {
     use std::collections::{HashMap, HashSet};
 
     use super::{Input, Key, Output, Shape};
