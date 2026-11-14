@@ -29,7 +29,10 @@ enum Xtask {
     /// Run all tests.
     Test,
 
-    /// Run all checks.
+    /// Write all generated files.
+    Generate,
+
+    /// Write all generated files, then run all checks.
     Ci,
 
     /// Pin taba-rolldown to a Rolldown release, or see which fit an MSRV.
@@ -54,6 +57,7 @@ fn main() {
         Xtask::Fmt { check } => fmt(check),
         Xtask::Lint => lint(),
         Xtask::Test => test(),
+        Xtask::Generate => generate(),
         Xtask::Ci => ci(),
         Xtask::Rolldown(Rolldown::Pin { version }) => pnpm::xtask("rolldown", &["pin", &version]),
         Xtask::Rolldown(Rolldown::Msrv) => pnpm::xtask("rolldown", &["msrv"]),
@@ -119,7 +123,16 @@ fn test() -> io::Result<()> {
     run(test)
 }
 
+fn generate() -> io::Result<()> {
+    pnpm::install()?; // the generator formats with the repo's oxfmt
+    let mut generate = Command::new("cargo");
+    generate.args(["run", "--package", "generate", "--locked"]);
+    generate.current_dir(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+    run(generate)
+}
+
 fn ci() -> io::Result<()> {
+    generate()?;
     fmt(true)?;
     lint()?;
     test()

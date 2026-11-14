@@ -20,11 +20,16 @@ fn pnpm_missing(error: Error) -> Error {
     }
 }
 
-/// `pnpm run` from any cwd, failing on a stale `pnpm-lock.yaml`.
-fn script(filter: Option<&str>, name: &str, args: &[&str]) -> io::Result<()> {
+/// `pnpm install` from any cwd, failing on a stale `pnpm-lock.yaml`.
+pub(crate) fn install() -> io::Result<()> {
     let mut install = pnpm();
     install.args(["install", "--frozen-lockfile", "--silent"]);
-    crate::run(install).map_err(pnpm_missing)?;
+    crate::run(install).map_err(pnpm_missing)
+}
+
+/// `pnpm run` from any cwd, after an [`install`].
+fn script(filter: Option<&str>, name: &str, args: &[&str]) -> io::Result<()> {
+    install()?;
 
     let mut script = pnpm();
     script.arg("--silent");

@@ -72,7 +72,7 @@ pub enum Message {
 
 /// A session's [`Message`]s, in the order TypeScript sent them.
 #[derive(Debug, Deserialize, Input)]
-pub(crate) struct Batch(pub(crate) SessionId, pub(crate) Vec<Message>);
+pub struct Batch(pub(crate) SessionId, pub(crate) Vec<Message>);
 
 /// What a poll returns.
 #[derive(Debug, Serialize, Output)]

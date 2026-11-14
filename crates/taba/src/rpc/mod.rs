@@ -20,7 +20,7 @@ pub use self::{
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::wire::{Kind, Message, Rejection, SafeInteger};
+    pub use super::wire::{Batch, Kind, Message, Rejection, SafeInteger};
 }
 
 /// What TypeScript can call or subscribe to.

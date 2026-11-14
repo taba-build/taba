@@ -88,6 +88,11 @@ impl Declarations {
         self
     }
 
+    /// [`output`](Self::output) and [`input`](Self::input).
+    pub fn both<T: Output + Input>(self) -> Self {
+        self.output::<T>().input::<T>()
+    }
+
     fn add(&mut self, shape: &Shape) {
         match shape {
             Shape::Reference(named) => {

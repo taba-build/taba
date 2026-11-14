@@ -1,0 +1,17 @@
+[package]
+name = "generate"
+publish = false
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+# intentionally not workspace
+version = "0.0.0"
+
+[dependencies]
+taba = { workspace = true, features = ["rpc"] }
+taba-build = { workspace = true, features = ["typescript"] }
+
+[lints]
+workspace = true
