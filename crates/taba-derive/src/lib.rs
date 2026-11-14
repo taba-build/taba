@@ -292,11 +292,10 @@ impl Expander<'_> {
         if let Some(ty) = self.direction.converted(&container.attrs) {
             return Source::Through(ty);
         }
-        if !container.attrs.transparent() {
-            return Source::Own(&container.data);
-        }
         let field = container.data.all_fields().find(|field| field.attrs.transparent());
-        let field = field.expect("serde marks a transparent type's field");
+        let Some(field) = field else {
+            return Source::Own(&container.data);
+        };
         match self.field_stand_in(field) {
             Some(ty) => Source::StandIn(Box::new(ty)),
             None => Source::Through(field.ty),
@@ -522,20 +521,20 @@ impl Expander<'_> {
     fn internally_tagged(&self, tag: &str, variant: &Variant) -> Tokens {
         let name = self.direction.name(variant.attrs.name());
         let tag = required(tag, literal(&name));
-        match variant.style {
+        match (variant.style, variant.fields.as_slice()) {
             // serde takes extra keys here, with `deny_unknown_fields` or without
-            Style::Unit => object(false, [tag]),
-            Style::Struct => self.struct_object(Some(tag), &variant.fields),
+            (Style::Unit, _) => object(false, [tag]),
+            (Style::Struct, fields) => self.struct_object(Some(tag), fields),
             // let newtype refuse it, skip is never supported
-            Style::Newtype if self.direction.skips(&variant.fields[0].attrs) => {
-                self.newtype(&variant.fields[0])
-            }
-            Style::Newtype => {
+            (Style::Newtype, [field]) if self.direction.skips(&field.attrs) => self.newtype(field),
+            (Style::Newtype, _) => {
                 let message = "internally tagged newtype variants aren't supported yet";
                 self.ctxt.error_spanned_by(variant.original, message);
                 quote!(_taba::Shape::Never)
             }
-            Style::Tuple => unreachable!("serde refuses tuple variants under internal tagging"),
+            (Style::Tuple, _) => {
+                unreachable!("serde_derive_internals refuses tuple variants under internal tagging")
+            }
         }
     }
 
