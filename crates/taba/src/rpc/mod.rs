@@ -17,6 +17,7 @@ pub use self::{
     sessions::{SessionId, Sessions},
     wire::Frame,
 };
+use crate::typescript::Request;
 
 #[doc(hidden)]
 pub mod __private {
@@ -24,7 +25,36 @@ pub mod __private {
 }
 
 /// What TypeScript can call or subscribe to.
-pub trait Procedure {
+///
+/// TypeScript calls a procedure by its type's path, which a generic type's instantiations share:
+///
+/// ```rust,ignore
+/// #[derive(Deserialize, Input)]
+/// struct Find<T> {
+///     query: T,
+/// }
+///
+/// #[derive(Deserialize, Input)]
+/// struct Id(String);
+///
+/// // both would be `shop::Find`, sent as `{ query: string }`
+/// impl Procedure for Find<String> { ... }
+/// impl Procedure for Find<Id> { ... }
+/// ```
+///
+/// To call each instantiation, wrap it in a struct of its own:
+///
+/// ```rust,ignore
+/// #[derive(Deserialize, Input)]
+/// struct FindByName(Find<String>);
+///
+/// #[derive(Deserialize, Input)]
+/// struct FindById(Find<Id>);
+///
+/// impl Procedure for FindByName { ... }
+/// impl Procedure for FindById { ... }
+/// ```
+pub trait Procedure: Request {
     /// What TypeScript gets on success.
     type Output;
 

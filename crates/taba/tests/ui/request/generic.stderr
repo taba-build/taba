@@ -1,0 +1,17 @@
+error[E0277]: `Find<String>` can't be a procedure
+  --> tests/ui/request/generic.rs:11:20
+   |
+11 | impl Procedure for Find<String> {
+   |                    ^^^^^^^^^^^^ a procedure derives `Input` and isn't generic
+   |
+help: the trait `taba::__private::typescript::Request` is not implemented for `Find<String>`
+  --> tests/ui/request/generic.rs:7:1
+   |
+ 7 | struct Find<T> {
+   | ^^^^^^^^^^^^^^
+   = note: to call one instantiation of a generic type, wrap it in a struct of its own
+note: required by a bound in `Procedure`
+  --> src/rpc/mod.rs
+   |
+   | pub trait Procedure: Request {
+   |                      ^^^^^^^ required by this bound in `Procedure`

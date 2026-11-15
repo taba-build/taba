@@ -7,7 +7,7 @@ use alloc::{
     string::{String, ToString},
     vec::Vec,
 };
-use core::{any::type_name, fmt, future::ready};
+use core::{fmt, future::ready};
 
 use futures_util::{FutureExt, Stream, StreamExt, stream};
 use serde::{Serialize, de::DeserializeOwned};
@@ -15,7 +15,6 @@ use serde_json::value::{RawValue, to_raw_value};
 
 use self::sealed::Erased;
 use super::{Once, Output, Procedure, Strand, wire::Kind};
-use crate::typescript::{Input, Shape};
 
 /// Procedures, and the handlers an app attaches.
 ///
@@ -48,10 +47,7 @@ impl Default for Procedures {
 
 impl<S> Procedures<S> {
     /// Adds `P`.
-    pub fn declare<P>(mut self) -> Self
-    where
-        P: Procedure + Input,
-    {
+    pub fn declare<P: Procedure>(mut self) -> Self {
         self.names.entry(Self::name::<P>()).or_default().declared = true;
         self
     }
@@ -65,7 +61,7 @@ impl<S> Procedures<S> {
     pub fn handle<H, Args, P>(self, handler: H) -> Self
     where
         H: Handler<Args, S, Request = P> + Send + Sync + 'static,
-        P: DeserializeOwned + Procedure + Input,
+        P: DeserializeOwned + Procedure,
         P::Output: Output,
         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S: Clone + Send + Sync + 'static,
@@ -78,7 +74,7 @@ impl<S> Procedures<S> {
     pub fn handle_with<S2, H, Args, P>(mut self, state: S2, handler: H) -> Self
     where
         H: Handler<Args, S2, Request = P> + Send + Sync + 'static,
-        P: DeserializeOwned + Procedure + Input,
+        P: DeserializeOwned + Procedure,
         P::Output: Output,
         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
         S2: Clone + Send + Sync + 'static,
@@ -116,12 +112,8 @@ impl<S> Procedures<S> {
     }
 
     /// `P`'s path, crate first, so two modules can share a type name.
-    fn name<P: Input>() -> String {
-        let Shape::Reference(named) = P::__SHAPE else {
-            // private api, we only support deriving
-            unreachable!("`{}` implements `Input` by hand", type_name::<P>())
-        };
-        let named = named();
+    fn name<P: Procedure>() -> String {
+        let named = P::named();
         format!("{}::{}", named.module_path, named.name)
     }
 }

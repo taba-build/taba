@@ -11,7 +11,6 @@
 //!
 //! Not supported yet:
 //!
-//! * type and const parameters
 //! * an internally tagged enum with a newtype variant
 //! * `untagged` on a variant of a tagged enum
 //! * `remote`, `variant_identifier` and `field_identifier` on a type
@@ -22,6 +21,7 @@
 //!
 //! * `skip` on a newtype's field (a newtype is its one value)
 //! * `flatten` with `deny_unknown_fields` (serde's docs rule out the pair)
+//! * a const parameter the JSON uses (TypeScript has none)
 //!
 //! `#[taba(with = "Type")]` names a type with the same JSON, for both directions. Its
 //! `serialize_with` and `deserialize_with` keys do the same for [`Output`](macro@Output) or
@@ -30,6 +30,32 @@
 //! Use it on a field that has serde's `with`, `serialize_with` or `deserialize_with`, or whose type
 //! is from another crate. Use it on a type whose serde impls you wrote by hand.
 //!
+//! # Type parameters
+//!
+//! A generic type is declared once in TypeScript, like `Page<T>`. Its field types can ask only
+//! taba's traits and std's derivable ones of a type parameter, and one that needs more fails to
+//! compile, even when the type declares the bound:
+//!
+//! ```rust,ignore
+//! trait Freight {}
+//!
+//! #[derive(Serialize, Output)]
+//! struct Shipment<T: Freight> {
+//!     cargo: T,
+//! }
+//!
+//! // the trait bound `T: Freight` is not satisfied
+//! #[derive(Serialize, Output)]
+//! struct Load<T: Freight> {
+//!     shipments: Vec<Shipment<T>>,
+//! }
+//! ```
+//!
+//! Add a bound only where it's needed. Here that's `Shipment`'s impls rather than its definition,
+//! as the [API guidelines] recommend, and then `Load` needs no bound and both derive. A field of
+//! another crate's type takes `#[taba(with = "...")]` instead.
+//!
+//! [API guidelines]: https://rust-lang.github.io/api-guidelines/future-proofing.html#c-struct-bounds
 //! [container]: https://serde.rs/container-attrs.html
 //! [variant]: https://serde.rs/variant-attrs.html
 //! [field]: https://serde.rs/field-attrs.html
@@ -47,7 +73,13 @@ use serde_derive_internals::{
     name::MultiName,
     replace_receiver,
 };
-use syn::{Attribute, DeriveInput, GenericParam, LitStr, ext::IdentExt, parse_macro_input};
+use syn::{
+    Attribute, DeriveInput, Generics, Ident, LitStr,
+    ext::IdentExt,
+    parse_macro_input, parse_quote,
+    visit::{self, Visit},
+    visit_mut::{self, VisitMut},
+};
 
 /// Describes what `#[derive(Serialize)]` writes, from the same [attributes](crate#attributes).
 #[proc_macro_derive(Output, attributes(serde, taba))]
@@ -192,6 +224,8 @@ fn derive(direction: Direction, mut input: DeriveInput) -> TokenStream {
     // serde's parser requires its private module (serde_derive_internals)
     let private = syn::Ident::new("__private", Span::call_site());
     replace_receiver(&mut input);
+    let mut itself = Itself { ident: input.ident.clone(), swapped: None };
+    itself.visit_data_mut(&mut input.data);
     let serde = Ctxt::new();
     let container = Container::from_ast(&serde, &input, Derive::from(direction), &private);
     if let Err(error) = serde.check() {
@@ -200,7 +234,8 @@ fn derive(direction: Direction, mut input: DeriveInput) -> TokenStream {
     let container = container.expect("serde's parser reports an error whenever it returns none");
 
     let ctxt = Ctxt::new();
-    let expanded = Expander { ctxt: &ctxt, direction, container: &container }.expand();
+    let expander = Expander { ctxt: &ctxt, direction, container: &container };
+    let expanded = expander.expand(itself.swapped);
     match ctxt.check() {
         Ok(()) => expanded.into(),
         Err(error) => error.to_compile_error().into(),
@@ -226,51 +261,185 @@ enum Source<'a> {
 }
 
 impl Expander<'_> {
-    fn expand(&self) -> Tokens {
+    /// The derive's output.
+    ///
+    /// `itself` is the name the type's references to itself were swapped for, if it has any.
+    fn expand(&self, itself: Option<Ident>) -> Tokens {
         self.refuse_unsupported();
         self.check_taba();
 
-        let container = self.container;
         let source = self.source();
-        let ident = &container.ident;
-        let name = ident.unraw().to_string();
-        let docs = docs(&container.original.attrs);
-        let direction = self.direction;
-        let shape = self.shape(&source);
-        let path = self.direction.trait_path();
-        let optional = self.optional(&source);
-        let (impl_generics, ty_generics, where_clause) = container.generics.split_for_impl();
+        let parameters = self.parameters(&source);
+        let named = named(self.container.generics, &parameters);
+        let reference = self.reference(&named, &parameters);
+        let named_fn = self.named_fn(&source, &parameters);
+        let itself = itself.map(|itself| self.itself(&itself, &parameters, &reference));
+        let trait_impl = self.trait_impl(&source, &parameters, &reference);
+        let request = self.request(&parameters, &named);
         quote! {
             const _: () = {
                 use ::taba::__private::typescript as _taba;
 
-                impl #impl_generics #path for #ident #ty_generics #where_clause {
-                    const __SHAPE: _taba::Shape = _taba::Shape::Reference(|| {
-                        &_taba::Named {
-                            module_path: ::core::module_path!(),
-                            name: #name,
-                            docs: #docs,
-                            direction: #direction,
-                            file: ::core::file!(),
-                            line: ::core::line!(),
-                            shape: #shape,
-                        }
-                    });
-                    #optional
-                }
+                #named_fn
+                #itself
+                #trait_impl
+                #request
             };
         }
+    }
+
+    /// The block-local `named`, which returns the type's `Named`.
+    fn named_fn(&self, source: &Source, parameters: &[Ident]) -> Tokens {
+        let container = self.container;
+        let generics = container.generics;
+        let lifetimes: Vec<_> = generics.lifetimes().map(|param| &param.lifetime).collect();
+        let type_params: Vec<_> = generics.type_params().map(|param| &param.ident).collect();
+        let consts = generics.const_params().map(|param| &param.ident);
+        let const_types = generics.const_params().map(|param| &param.ty);
+        let name = container.ident.unraw().to_string();
+        let names = parameters.iter().map(|parameter| parameter.unraw().to_string());
+        let docs = docs(&container.original.attrs);
+        let direction = self.direction;
+        let shape = self.shape(source);
+        quote! {
+            fn named<#(#lifetimes,)* #(#type_params,)* #(const #consts: #const_types),*>()
+            -> &'static _taba::Named
+            where
+                #(#lifetimes: 'static,)*
+                #(#type_params: 'static,)*
+                #(#parameters: _taba::Placeholder,)*
+            {
+                &const {
+                    _taba::Named {
+                        module_path: ::core::module_path!(),
+                        name: #name,
+                        parameters: &[#(#names),*],
+                        docs: #docs,
+                        direction: #direction,
+                        file: ::core::file!(),
+                        line: ::core::line!(),
+                        shape: #shape,
+                    }
+                }
+            }
+        }
+    }
+
+    /// `__Itself`, which stands in for the type in its own fields.
+    fn itself(&self, itself: &Ident, parameters: &[Ident], reference: &Tokens) -> Tokens {
+        let path = self.direction.trait_path();
+        let mut generics = self.container.generics.clone();
+        for param in generics.type_params_mut() {
+            param.bounds = parse_quote!(?Sized);
+        }
+        let lifetimes = generics.lifetimes().map(|param| &param.lifetime);
+        let type_params = generics.type_params().map(|param| &param.ident);
+        let (params, ty_generics, _) = generics.split_for_impl();
+        quote! {
+            struct #itself #params(
+                ::core::marker::PhantomData<(#(&#lifetimes (),)* #(*const #type_params,)*)>,
+            );
+
+            impl #params #path for #itself #ty_generics
+            where
+                #(#parameters: #path,)*
+            {
+                const __SHAPE: _taba::Shape = #reference;
+            }
+        }
+    }
+
+    /// The `Input` or `Output` impl.
+    fn trait_impl(&self, source: &Source, parameters: &[Ident], reference: &Tokens) -> Tokens {
+        let ident = &self.container.ident;
+        let path = self.direction.trait_path();
+        let (impl_generics, ty_generics, where_clause) = self.container.generics.split_for_impl();
+        let predicates = where_clause.map(|clause| &clause.predicates);
+        let optional_bound = self.optional_bound(source, parameters);
+        let optional = self.optional(source);
+        quote! {
+            impl #impl_generics #path for #ident #ty_generics
+            where
+                #(#parameters: #path,)*
+                #optional_bound
+                #predicates
+            {
+                const __SHAPE: _taba::Shape = #reference;
+                #optional
+            }
+        }
+    }
+
+    /// The `Request` impl, for a type that isn't generic in TypeScript.
+    fn request(&self, parameters: &[Ident], named: &Tokens) -> Option<Tokens> {
+        let (Direction::Input, []) = (self.direction, parameters) else { return None };
+        let ident = &self.container.ident;
+        let (impl_generics, ty_generics, where_clause) = self.container.generics.split_for_impl();
+        Some(quote! {
+            #[diagnostic::do_not_recommend]
+            impl #impl_generics _taba::Request for #ident #ty_generics #where_clause {
+                fn named() -> &'static _taba::Named {
+                    #named()
+                }
+            }
+        })
+    }
+
+    /// A reference to the type, with each parameter it uses as an argument.
+    fn reference(&self, named: &Tokens, parameters: &[Ident]) -> Tokens {
+        let arguments = parameters.iter().map(|parameter| self.direction.shape(parameter));
+        quote!(_taba::Shape::Reference(#named, &[#(#arguments),*]))
+    }
+
+    /// The bound `__OPTIONAL` needs at the real parameters.
+    ///
+    /// `BTreeMap<T, u32>: Input` also needs `T: Key`.
+    fn optional_bound(&self, source: &Source, parameters: &[Ident]) -> Option<Tokens> {
+        let (Direction::Input, Source::Through(ty)) = (self.direction, source) else { return None };
+        // without parameters the bound adds nothing, and rustc would report a missing impl twice
+        (!parameters.is_empty()).then(|| quote!(#ty: _taba::Input,))
+    }
+
+    /// The type parameters its TypeScript declaration takes, in order.
+    fn parameters(&self, source: &Source) -> Vec<Ident> {
+        let mentioned = self.mentioned(source);
+        let generics = self.container.generics;
+        for param in generics.const_params().filter(|param| mentioned.contains(&param.ident)) {
+            let message = "a const parameter in the JSON isn't supported: TypeScript has none";
+            self.ctxt.error_spanned_by(param, message);
+        }
+        let used = generics.type_params().filter(|param| mentioned.contains(&param.ident));
+        used.map(|param| param.ident.clone()).collect()
+    }
+
+    /// The bare identifiers in the types the shape is built from.
+    fn mentioned(&self, source: &Source) -> Vec<Ident> {
+        let mut mentions = Mentions(Vec::new());
+        match source {
+            Source::StandIn(ty) => mentions.visit_type(ty),
+            Source::Through(ty) => mentions.visit_type(ty),
+            Source::Own(data) => {
+                let fields: Vec<_> = match data {
+                    Data::Struct(_, fields) => self.present(fields).collect(),
+                    Data::Enum(variants) => variants
+                        .iter()
+                        .filter(|variant| !self.direction.skips_variant(&variant.attrs))
+                        .flat_map(|variant| self.present(&variant.fields))
+                        .collect(),
+                };
+                for field in fields {
+                    let stand_in = self.stand_in(&field.original.attrs);
+                    mentions.visit_type(stand_in.as_ref().unwrap_or(field.ty));
+                }
+            }
+        }
+        mentions.0
     }
 
     /// Refuses a type the derive can't describe yet.
     fn refuse_unsupported(&self) {
         let container = self.container;
         let original = container.original;
-        let mut parameters = container.generics.params.iter();
-        let generic = parameters.find(|parameter| !matches!(parameter, GenericParam::Lifetime(_)));
-        if let Some(parameter) = generic {
-            self.ctxt.error_spanned_by(parameter, "type and const parameters aren't supported yet");
-        }
         if container.attrs.remote().is_some() {
             self.ctxt.error_spanned_by(original, "`remote` isn't supported yet");
         }
@@ -571,6 +740,59 @@ impl Expander<'_> {
         let value = required(content, self.untagged(variant));
         object([tag, value], self.rest())
     }
+}
+
+/// Swaps each field type naming the type itself, like `Tree<T>`, for `__Itself<T>`.
+struct Itself {
+    ident: Ident,
+    swapped: Option<Ident>,
+}
+
+impl VisitMut for Itself {
+    fn visit_path_mut(&mut self, path: &mut syn::Path) {
+        if path.leading_colon.is_none()
+            && path.segments.len() == 1
+            && let Some(segment) = path.segments.first_mut()
+            && segment.ident == self.ident
+        {
+            let swapped = &mut self.swapped;
+            let itself = swapped.get_or_insert_with(|| Ident::new("__Itself", Span::call_site()));
+            segment.ident = itself.clone();
+        }
+        visit_mut::visit_path_mut(self, path);
+    }
+}
+
+/// The bare identifiers some types mention.
+struct Mentions(Vec<Ident>);
+
+impl<'ast> Visit<'ast> for Mentions {
+    fn visit_path(&mut self, path: &'ast syn::Path) {
+        // serde's bounds skip it too, since `PhantomData<T>` is `null` whatever `T` is
+        if path.segments.last().is_some_and(|segment| segment.ident == "PhantomData") {
+            return;
+        }
+        if let Some(ident) = path.get_ident() {
+            self.0.push(ident.clone());
+        }
+        visit::visit_path(self, path);
+    }
+}
+
+/// The generated `named`, with an argument for each generic parameter.
+///
+/// A type parameter the shape uses gets its placeholder, and any other gets `()`. A const
+/// parameter is passed as itself.
+fn named(generics: &Generics, parameters: &[Ident]) -> Tokens {
+    let placeholders = generics.type_params().map(|param| {
+        match parameters.iter().position(|parameter| *parameter == param.ident) {
+            Some(index) => quote!(_taba::Parameter<#index>),
+            // any type, since nothing reads it
+            None => quote!(()),
+        }
+    });
+    let consts = generics.const_params().map(|param| &param.ident);
+    quote!(named::<#(#placeholders,)* #(#consts),*>)
 }
 
 fn literal(name: &str) -> Tokens {

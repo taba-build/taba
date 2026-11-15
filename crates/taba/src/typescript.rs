@@ -13,10 +13,14 @@ use alloc::{
     string::String,
     vec::Vec,
 };
+use core::{fmt::Debug, hash::Hash, marker::PhantomData};
 
 #[doc(hidden)]
 pub mod __private {
-    pub use super::{Direction, Input, Named, Object, Output, Property, Rest, Shape, Variant};
+    pub use super::{
+        Direction, Input, Named, Object, Output, Parameter, Placeholder, Property, Request, Rest,
+        Shape, Variant,
+    };
 }
 
 /// One JSON shape.
@@ -58,10 +62,13 @@ pub enum Shape {
     /// The first of these that serde reads.
     Choice(&'static [Variant]),
 
-    /// A named type, declared once.
+    /// One of its [`Named`]'s parameters, by position.
+    Parameter(usize),
+
+    /// A named type, declared once, with its arguments.
     ///
     /// A `fn` because references can form cycles, and a const like `__SHAPE` can't hold one.
-    Reference(fn() -> &'static Named),
+    Reference(fn() -> &'static Named, &'static [Shape]),
 }
 
 /// An object's keys.
@@ -138,7 +145,10 @@ pub struct Named {
     /// Its Rust name.
     pub name: &'static str,
 
-    /// Its shape.
+    /// The type parameters its TypeScript declaration takes, in order.
+    pub parameters: &'static [&'static str],
+
+    /// Its shape, with a [`Shape::Parameter`] where each type parameter goes.
     pub shape: Shape,
 }
 
@@ -178,6 +188,17 @@ pub trait Input {
     const __OPTIONAL: bool = false;
 }
 
+/// An [`Input`] that isn't generic in TypeScript.
+#[diagnostic::on_unimplemented(
+    message = "`{Self}` can't be a procedure",
+    label = "a procedure derives `Input` and isn't generic",
+    note = "to call one instantiation of a generic type, wrap it in a struct of its own"
+)]
+pub trait Request {
+    /// Its declaration.
+    fn named() -> &'static Named;
+}
+
 macro_rules! both {
     ($shape:expr, $($ty:ty),+) => {$(
         impl Output for $ty {
@@ -209,6 +230,14 @@ macro_rules! float {
 }
 
 float!(f32, f64);
+
+impl<T: ?Sized> Output for PhantomData<T> {
+    const __SHAPE: Shape = Shape::Null;
+}
+
+impl<T: ?Sized> Input for PhantomData<T> {
+    const __SHAPE: Shape = Shape::Null;
+}
 
 impl Output for str {
     const __SHAPE: Shape = Shape::String;
@@ -301,6 +330,27 @@ impl<K: Key, V: Input> Input for BTreeMap<K, V> {
     const __SHAPE: Shape = Shape::Record(&V::__SHAPE);
 }
 
+/// A placeholder for the `N`th of a [`Named`]'s parameters.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Parameter<const N: usize>;
+
+impl<const N: usize> Output for Parameter<N> {
+    const __SHAPE: Shape = Shape::Parameter(N);
+}
+
+impl<const N: usize> Input for Parameter<N> {
+    const __SHAPE: Shape = Shape::Parameter(N);
+}
+
+impl<const N: usize> Key for Parameter<N> {}
+
+/// Everything a [`Parameter`] implements.
+///
+/// A field type can ask only these of a type parameter.
+pub trait Placeholder: Output + Input + Key + Copy + Debug + Default + Hash + Ord {}
+
+impl<const N: usize> Placeholder for Parameter<N> {}
+
 mod serde_json {
     use ::serde_json::{Map, Number, Value, value::RawValue};
 
@@ -311,22 +361,26 @@ mod serde_json {
     macro_rules! value {
         ($trait:ident) => {
             impl $trait for Value {
-                const __SHAPE: Shape = Shape::Reference(|| &Named {
-                    docs: &[],
-                    direction: Direction::$trait,
-                    file: file!(),
-                    line: line!(),
-                    module_path: "serde_json::value",
-                    name: "Value",
-                    shape: Shape::Union(&[
-                        Shape::Null,
-                        Shape::Boolean,
-                        Shape::Number,
-                        Shape::String,
-                        Shape::Array(&<Value as $trait>::__SHAPE),
-                        Shape::Record(&<Value as $trait>::__SHAPE),
-                    ]),
-                });
+                const __SHAPE: Shape = Shape::Reference(
+                    || &Named {
+                        docs: &[],
+                        direction: Direction::$trait,
+                        file: file!(),
+                        line: line!(),
+                        module_path: "serde_json::value",
+                        name: "Value",
+                        parameters: &[],
+                        shape: Shape::Union(&[
+                            Shape::Null,
+                            Shape::Boolean,
+                            Shape::Number,
+                            Shape::String,
+                            Shape::Array(&<Value as $trait>::__SHAPE),
+                            Shape::Record(&<Value as $trait>::__SHAPE),
+                        ]),
+                    },
+                    &[],
+                );
             }
 
             impl $trait for Map<String, Value> {

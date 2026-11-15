@@ -20,7 +20,7 @@ use taba_rolldown::oxc::{
             ImportDeclarationSpecifier, ImportOrExportKind, Program, PropertyKey, Statement,
             StringLiteral, TSIndexSignatureName, TSLiteral, TSNamespaceDeclarationBody,
             TSNamespaceDeclarationKind, TSSignature, TSTupleElement, TSType, TSTypeAnnotation,
-            TSTypeName,
+            TSTypeName, TSTypeParameter, TSTypeParameterDeclaration, TSTypeParameterInstantiation,
         },
         builder::AstBuilder,
     },
@@ -95,13 +95,14 @@ impl Declarations {
 
     fn add(&mut self, shape: &Shape) {
         match shape {
-            Shape::Reference(named) => {
+            Shape::Reference(named, arguments) => {
                 let named = named();
 
                 // each type once, which also ends a recursive type's walk
                 if self.types.insert(Declared(named)) {
                     self.add(&named.shape);
                 }
+                self.add_all(*arguments);
             }
             Shape::Array(item) | Shape::Record(item) => self.add(item),
             Shape::Tuple(items) | Shape::Union(items) => self.add_all(*items),
@@ -121,7 +122,8 @@ impl Declarations {
             | Shape::String
             | Shape::Null
             | Shape::Never
-            | Shape::Literal(_) => {}
+            | Shape::Literal(_)
+            | Shape::Parameter(_) => {}
         }
     }
 
@@ -136,7 +138,8 @@ impl fmt::Display for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let allocator = Allocator::default();
         let ast = AstBuilder::new(&allocator);
-        let mut printer = Printer { ast: &ast, crate_: self.crate_, docs: Docs::default() };
+        let docs = Docs::default();
+        let mut printer = Printer { ast: &ast, crate_: self.crate_, docs, parameters: &[] };
         let import = printer.import_self();
         let types: Vec<_> = self.types.iter().map(|declared| declared.0).collect();
         let modules = types.chunk_by(|first, second| first.module_path == second.module_path);
@@ -230,6 +233,9 @@ struct Printer<'a> {
     ast: &'a AstBuilder<'a>,
     crate_: CrateCrate,
     docs: Docs,
+
+    /// The names each [`Shape::Parameter`] indexes, for the type being declared.
+    parameters: &'static [&'static str],
 }
 
 impl<'a> Printer<'a> {
@@ -278,13 +284,23 @@ impl<'a> Printer<'a> {
         self.namespace(named.name, &[], ArenaVec::from_array_in([input], self.ast))
     }
 
-    /// `export type Foo = ...;`, with `named`'s docs and shape.
+    /// `export type Foo<T> = ...;`, with `named`'s docs, parameters and shape.
     fn alias(&mut self, name: &'a str, named: &Named) -> Statement<'a> {
         let ast = self.ast;
         let span = self.docs.span(named.docs);
+        self.parameters = named.parameters;
         let shape = self.ts(&named.shape);
+        let parameters = (!named.parameters.is_empty()).then(|| {
+            let parameters = named.parameters.iter().map(|&parameter| {
+                let name = BindingIdentifier::new(SPAN, parameter, ast);
+                TSTypeParameter::new(SPAN, name, None, None, false, false, false, ast)
+            });
+            let parameters = ArenaVec::from_iter_in(parameters, ast);
+            TSTypeParameterDeclaration::boxed(SPAN, parameters, ast)
+        });
         let id = BindingIdentifier::new(SPAN, name, ast);
-        let alias = Declaration::new_ts_type_alias_declaration(SPAN, id, None, shape, false, ast);
+        let alias =
+            Declaration::new_ts_type_alias_declaration(SPAN, id, parameters, shape, false, ast);
         Statement::new_export_declaration(span, alias, ast)
     }
 
@@ -333,7 +349,11 @@ impl<'a> Printer<'a> {
             Shape::Object(object) => self.object(object),
             Shape::Union(members) => self.union(*members),
             Shape::Choice(variants) => self.union(variants.iter().map(|variant| &variant.shape)),
-            Shape::Reference(named) => self.reference(named()),
+            Shape::Parameter(index) => {
+                let name = TSTypeName::new_identifier_reference(SPAN, self.parameters[*index], ast);
+                TSType::new_ts_type_reference(SPAN, name, None, ast)
+            }
+            Shape::Reference(named, arguments) => self.reference(named(), arguments),
         }
     }
 
@@ -383,6 +403,14 @@ impl<'a> Printer<'a> {
                 let members = members.iter().map(|member| self.flattened(member));
                 TSType::new_ts_union_type(SPAN, ArenaVec::from_iter_in(members, ast), ast)
             }
+            Shape::Parameter(_) => {
+                // `T extends null ? {} : T`, since `T` can be an `Option`
+                let check = self.ts(shape);
+                let null = TSType::new_ts_null_keyword(SPAN, ast);
+                let none = TSType::new_ts_type_literal(SPAN, [], ast);
+                let some = self.ts(shape);
+                TSType::new_ts_conditional_type(SPAN, check, null, none, some, ast)
+            }
             shape => self.ts(shape),
         }
     }
@@ -398,8 +426,8 @@ impl<'a> Printer<'a> {
         }
     }
 
-    /// `$.crate.foo.Bar`, then `.Input` for an input.
-    fn reference(&self, named: &Named) -> TSType<'a> {
+    /// `$.crate.foo.Bar`, then `.Input` for an input, then its arguments.
+    fn reference(&mut self, named: &Named, arguments: &[Shape]) -> TSType<'a> {
         let ast = self.ast;
         let input = (named.direction == Direction::Input).then_some("Input");
         let path = self.segments(named.module_path).chain(iter::once(named.name)).chain(input);
@@ -408,7 +436,12 @@ impl<'a> Printer<'a> {
             let right = IdentifierName::new(SPAN, segment, ast);
             TSTypeName::new_qualified_name(SPAN, left, right, ast)
         });
-        TSType::new_ts_type_reference(SPAN, name, None, ast)
+        let arguments = (!arguments.is_empty()).then(|| {
+            let arguments = arguments.iter().map(|argument| self.ts(argument));
+            let arguments = ArenaVec::from_iter_in(arguments, ast);
+            TSTypeParameterInstantiation::boxed(SPAN, arguments, ast)
+        });
+        TSType::new_ts_type_reference(SPAN, name, arguments, ast)
     }
 
     fn key(&self, key: &'a str) -> PropertyKey<'a> {

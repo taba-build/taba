@@ -1,7 +1,7 @@
 //! Declarations for an idle game's types.
 #![expect(dead_code, reason = "the types exist for their shapes")]
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, marker::PhantomData};
 
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
@@ -43,7 +43,25 @@ struct Mine<'a> {
 
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     boost: Option<Boost>,
+
+    /// What's on its way.
+    incoming: Vec<Shipment<shop::Generator>>,
+
+    /// The generator that dug last.
+    last_digger: Id<Generator>,
 }
+
+/// An id for one kind of thing.
+#[derive(Serialize, Output)]
+struct Id<T> {
+    raw: u32,
+    kind: PhantomData<T>,
+}
+
+/// Something a shipment can carry.
+trait Freight {}
+
+impl Freight for shop::Generator {}
 
 /// A boost the mine is under.
 #[derive(Serialize, Output)]
@@ -52,15 +70,28 @@ struct Boost {
     rate: u32,
 }
 
+/// Something on its way to the mine.
+#[derive(Serialize, Deserialize, Output, Input)]
+struct Shipment<T: Freight> {
+    /// Ticks until it arrives.
+    eta: u32,
+
+    #[serde(flatten)]
+    cargo: T,
+
+    /// The shipment after it.
+    next: Option<Box<Shipment<T>>>,
+}
+
 #[derive(Serialize, Output)]
 enum Unreachable {}
 
 mod shop {
-    use serde::Serialize;
-    use taba::Output;
+    use serde::{Deserialize, Serialize};
+    use taba::{Input, Output};
 
     /// A generator for sale.
-    #[derive(Serialize, Output)]
+    #[derive(Serialize, Deserialize, Output, Input)]
     pub(super) struct Generator {
         /// What it costs, in ore.
         pub(super) price: u32,
@@ -83,6 +114,8 @@ enum Buy {
         /// A note for the shop, kept as sent.
         note: Box<RawValue>,
     },
+
+    Delivered(Shipment<shop::Generator>),
 }
 
 #[test]
@@ -115,7 +148,7 @@ fn every_shape_kind() {
     			extra?: number;
     			/** A note for the shop, kept as sent. */
     			note: $.serde_json.value.Value.Input;
-    		};
+    		} | $.crate.Shipment.Input<$.crate.shop.Generator.Input>;
     	}
     	/** A machine that makes ore. */
     	export type Generator = "drill" | "furnace";
@@ -123,6 +156,11 @@ fn every_shape_kind() {
     		/** A machine that makes ore. */
     		export type Input = "drill" | "furnace";
     	}
+    	/** An id for one kind of thing. */
+    	export type Id = {
+    		raw: number;
+    		kind: null;
+    	};
     	/**
     	* The mine, after a tick.
     	*
@@ -143,7 +181,27 @@ fn every_shape_kind() {
     		/** The last survey, as the surveyor wrote it. */
     		survey: $.serde_json.value.Value;
     		"gift-note": string;
+    		/** What's on its way. */
+    		incoming: $.crate.Shipment<$.crate.shop.Generator>[];
+    		/** The generator that dug last. */
+    		last_digger: $.crate.Id;
     	} & (($.crate.Boost | {}) | {});
+    	/** Something on its way to the mine. */
+    	export type Shipment<T> = {
+    		/** Ticks until it arrives. */
+    		eta: number;
+    		/** The shipment after it. */
+    		next: $.crate.Shipment<T> | null;
+    	} & (T extends null ? {} : T);
+    	export namespace Shipment {
+    		/** Something on its way to the mine. */
+    		export type Input<T> = {
+    			/** Ticks until it arrives. */
+    			eta: number;
+    			/** The shipment after it. */
+    			next?: $.crate.Shipment.Input<T> | null;
+    		} & (T extends null ? {} : T);
+    	}
     	export type Unreachable = never;
     }
     export namespace crate.shop {
@@ -152,6 +210,13 @@ fn every_shape_kind() {
     		/** What it costs, in ore. */
     		price: number;
     	};
+    	export namespace Generator {
+    		/** A generator for sale. */
+    		export type Input = {
+    			/** What it costs, in ore. */
+    			price: number;
+    		};
+    	}
     }
     "#);
 }
