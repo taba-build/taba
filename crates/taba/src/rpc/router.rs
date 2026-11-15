@@ -257,7 +257,7 @@ mod sealed {
     }
 
     /// Parses a request and starts its handler, so the answer borrows nothing.
-    type OnRequest<A> = Box<dyn Fn(&RawValue) -> A + Send + Sync>;
+    type OnRequest<T> = Box<dyn Fn(&RawValue) -> T + Send + Sync>;
 
     impl fmt::Debug for Erased {
         fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

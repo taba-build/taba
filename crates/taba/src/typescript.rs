@@ -60,21 +60,21 @@ pub enum Shape {
 
     /// A named type, declared once.
     ///
-    /// A `fn` so a recursive type can refer to itself.
+    /// A `fn` because references can form cycles, and a const like `__SHAPE` can't hold one.
     Reference(fn() -> &'static Named),
 }
 
 /// An object's keys.
 #[derive(Debug)]
 pub struct Object {
-    /// Its keys, in serde's order.
+    /// Its keys, in [`serde`]'s order.
     pub properties: &'static [Property],
 
     /// Its other keys.
     pub rest: Rest,
 }
 
-/// What serde does with an [`Object`]'s other keys.
+/// What [`serde`] does with an [`Object`]'s other keys.
 #[derive(Debug)]
 pub enum Rest {
     /// Ignores them.
@@ -95,7 +95,7 @@ pub struct Property {
     /// The field's `#[doc]` values, like [`Named::docs`].
     pub docs: &'static [&'static str],
 
-    /// The key, as serde names it.
+    /// The key, as [`serde`] names it.
     pub key: &'static str,
 
     /// Whether the key may be missing.
@@ -277,7 +277,7 @@ macro_rules! tuples {
     };
 }
 
-tuples!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+tuples!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P); // 16
 
 /// A map key [`serde_json`](::serde_json) writes as a string.
 ///
