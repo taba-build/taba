@@ -4348,7 +4348,7 @@ dependencies = [
 
 [[package]]
 name = "taba"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "futures-util",
  "insta",
@@ -4364,7 +4364,7 @@ dependencies = [
 
 [[package]]
 name = "taba-build"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "insta",
  "serde",
@@ -4376,7 +4376,7 @@ dependencies = [
 
 [[package]]
 name = "taba-derive"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4386,7 +4386,7 @@ dependencies = [
 
 [[package]]
 name = "taba-rolldown"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "oxc",
  "oxc_resolver",
@@ -4418,7 +4418,7 @@ dependencies = [
 
 [[package]]
 name = "taba-tauri"
-version = "0.0.1"
+version = "0.0.2"
 dependencies = [
  "insta",
  "serde_core",
