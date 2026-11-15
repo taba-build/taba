@@ -678,10 +678,7 @@ impl Expander<'_> {
         // refused in `refuse_unsupported`, this keeps them from a second error
         let tagged = present.clone().filter(|variant| !variant.attrs.untagged());
         match self.container.attrs.tag() {
-            TagType::None => {
-                let choices = present.map(|variant| self.choice(variant));
-                quote!(_taba::Shape::Choice(&[#(#choices),*]))
-            }
+            TagType::None => union(present.map(|variant| self.untagged(variant))),
             TagType::External => union(tagged.map(|variant| self.externally_tagged(variant))),
             TagType::Internal { tag } => {
                 union(tagged.map(|variant| self.internally_tagged(tag, variant)))
@@ -690,12 +687,6 @@ impl Expander<'_> {
                 union(tagged.map(|variant| self.adjacently_tagged(tag, content, variant)))
             }
         }
-    }
-
-    fn choice(&self, variant: &Variant) -> Tokens {
-        let name = variant.ident.unraw().to_string();
-        let shape = self.untagged(variant);
-        quote!(_taba::Variant { name: #name, shape: #shape })
     }
 
     /// The variant's JSON without a tag.

@@ -113,10 +113,6 @@ impl Declarations {
                     self.add_all(flattened);
                 }
             }
-            Shape::Choice(variants) => {
-                let shapes = variants.iter().map(|variant| &variant.shape);
-                self.add_all(shapes);
-            }
             Shape::Boolean
             | Shape::Number
             | Shape::String
@@ -347,8 +343,7 @@ impl<'a> Printer<'a> {
             }
             Shape::Record(value) => self.record(value),
             Shape::Object(object) => self.object(object),
-            Shape::Union(members) => self.union(*members),
-            Shape::Choice(variants) => self.union(variants.iter().map(|variant| &variant.shape)),
+            Shape::Union(members) => self.union(members),
             Shape::Parameter(index) => {
                 let name = TSTypeName::new_identifier_reference(SPAN, self.parameters[*index], ast);
                 TSType::new_ts_type_reference(SPAN, name, None, ast)
@@ -415,9 +410,9 @@ impl<'a> Printer<'a> {
         }
     }
 
-    fn union<'s>(&mut self, shapes: impl IntoIterator<Item = &'s Shape>) -> TSType<'a> {
+    fn union(&mut self, members: &[Shape]) -> TSType<'a> {
         let ast = self.ast;
-        let members = shapes.into_iter().map(|shape| self.ts(shape));
+        let members = members.iter().map(|member| self.ts(member));
         let mut members = ArenaVec::from_iter_in(members, ast);
         match members.len() {
             0 => TSType::new_ts_never_keyword(SPAN, ast),

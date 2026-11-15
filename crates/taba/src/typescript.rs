@@ -19,7 +19,7 @@ use core::{fmt::Debug, hash::Hash, marker::PhantomData};
 pub mod __private {
     pub use super::{
         Direction, Input, Named, Object, Output, Parameter, Placeholder, Property, Request, Rest,
-        Shape, Variant,
+        Shape,
     };
 }
 
@@ -58,9 +58,6 @@ pub enum Shape {
 
     /// Any one of these.
     Union(&'static [Shape]),
-
-    /// The first of these that serde reads.
-    Choice(&'static [Variant]),
 
     /// One of its [`Named`]'s parameters, by position.
     Parameter(usize),
@@ -109,16 +106,6 @@ pub struct Property {
     pub optional: bool,
 
     /// The value's shape.
-    pub shape: Shape,
-}
-
-/// One variant of a [`Shape::Choice`].
-#[derive(Debug)]
-pub struct Variant {
-    /// Its Rust name.
-    pub name: &'static str,
-
-    /// Its shape.
     pub shape: Shape,
 }
 
