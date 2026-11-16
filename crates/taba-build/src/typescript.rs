@@ -422,7 +422,10 @@ impl<'a> Declaring<'_, 'a> {
 
     fn union(&mut self, members: &[Shape]) -> TSType<'a> {
         let ast = self.file.ast;
-        let members = members.iter().map(|member| self.ts(member));
+        let mut members = flat(members);
+        // so `Option<Option<T>>` prints as `T | null`
+        members.dedup_by(|a, b| matches!((a, b), (Shape::Null, Shape::Null)));
+        let members = members.into_iter().map(|member| self.ts(member));
         let mut members = ArenaVec::from_iter_in(members, ast);
         match members.len() {
             0 => TSType::new_ts_never_keyword(SPAN, ast),
@@ -458,4 +461,16 @@ impl<'a> Declaring<'_, 'a> {
             PropertyKey::new_string_literal(SPAN, key, None, ast)
         }
     }
+}
+
+/// A union's `members`, with an inner union's own members in its place.
+fn flat(members: &[Shape]) -> Vec<&Shape> {
+    let mut shapes = vec![];
+    for member in members {
+        match member {
+            Shape::Union(inner) => shapes.extend(flat(inner)),
+            member => shapes.push(member),
+        }
+    }
+    shapes
 }

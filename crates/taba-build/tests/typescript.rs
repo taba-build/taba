@@ -226,7 +226,7 @@ fn every_shape_kind() {
     		incoming: $.crate.Shipment<$.crate.shop.Generator>[];
     		/** The generator that dug last. */
     		last_digger: $.crate.Id;
-    	}, [($.crate.Boost | null) | null, $.crate.Weather]>;
+    	}, [$.crate.Boost | null, $.crate.Weather]>;
     	/** Something on its way to the mine. */
     	export type Shipment<T> = $Output<{
     		/** Ticks until it arrives. */
