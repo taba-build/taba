@@ -87,10 +87,11 @@ pub enum Rest {
     /// Rejects them, under `deny_unknown_fields`.
     Rejected,
 
-    /// They're the keys of these `#[serde(flatten)]` fields.
+    /// They're the keys of these parts.
     ///
-    /// A `null` adds none, which is what a flattened `None` writes.
-    Flattened(&'static [Shape]),
+    /// A part is a `#[serde(flatten)]` field, or an internally tagged newtype variant's value. A
+    /// `null` adds none, which is what a flattened `None` writes.
+    Parts(&'static [Shape]),
 }
 
 /// One key of an [`Object`].
@@ -158,6 +159,10 @@ pub enum Direction {
 pub trait Output {
     #[doc(hidden)]
     const __SHAPE: Shape;
+
+    /// Its shape inside an internally tagged newtype variant.
+    #[doc(hidden)]
+    const __TAGGED: Shape = Self::__SHAPE;
 }
 
 /// What serde_json reads as `Self`.
@@ -167,12 +172,16 @@ pub trait Output {
     note = "a 64-bit integer has no exact JavaScript number"
 )]
 pub trait Input {
-    #[doc(hidden)]
-    const __SHAPE: Shape;
-
     /// Whether a struct field of this type may be missing when read.
     #[doc(hidden)]
     const __OPTIONAL: bool = false;
+
+    #[doc(hidden)]
+    const __SHAPE: Shape;
+
+    /// Its shape inside an internally tagged newtype variant.
+    #[doc(hidden)]
+    const __TAGGED: Shape = Self::__SHAPE;
 }
 
 /// An [`Input`] that isn't generic in TypeScript.
@@ -239,17 +248,23 @@ impl<T: Output + ?Sized> Output for Box<T> {
 }
 
 impl<T: Input> Input for Box<T> {
-    const __SHAPE: Shape = T::__SHAPE;
     const __OPTIONAL: bool = T::__OPTIONAL;
+    const __SHAPE: Shape = T::__SHAPE;
 }
 
 impl<T: Output> Output for Option<T> {
     const __SHAPE: Shape = Shape::Union(&[T::__SHAPE, Shape::Null]);
+
+    // serde can't write one beside a tag
+    const __TAGGED: Shape = Shape::Never;
 }
 
 impl<T: Input> Input for Option<T> {
-    const __SHAPE: Shape = Shape::Union(&[T::__SHAPE, Shape::Null]);
     const __OPTIONAL: bool = true;
+    const __SHAPE: Shape = Shape::Union(&[T::__SHAPE, Shape::Null]);
+
+    // serde never reads one beside a tag as `None`
+    const __TAGGED: Shape = T::__TAGGED;
 }
 
 impl<T: Output> Output for [T] {

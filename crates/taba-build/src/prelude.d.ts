@@ -1,7 +1,7 @@
 // A field with `#[serde(flatten)]` merges its keys into the object around it, and those keys can
 // depend on a type parameter. So taba prints the object as `$Output<Declared, Parts>` or
-// `$Input<Declared, Parts>`, one part per flattened field, and these aliases work out its keys in
-// TypeScript wherever the type is used.
+// `$Input<Declared, Parts>`, and these aliases work out its keys in TypeScript wherever the type
+// is used.
 //
 // Why not intersect the declared keys with each part? A flattened map takes every key left over,
 // and an index signature can't leave the declared keys out. With a map part, `$Output` accepts

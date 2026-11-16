@@ -138,6 +138,86 @@ export namespace crate.game {
       ]
     >;
   }
+  /** Something that happened at the mine. */
+  export type Event =
+    | $Output<
+        {
+          kind: "Bought";
+        },
+        [$.crate.game.shop.Generator]
+      >
+    | $Output<
+        {
+          kind: "Sold";
+        },
+        [
+          {
+            [key: string]: number;
+          },
+        ]
+      >
+    | $Output<
+        {
+          kind: "Calmed";
+        },
+        [$.crate.game.Calm]
+      >
+    | $Output<
+        {
+          kind: "Changed";
+        },
+        [$.crate.game.Weather]
+      >;
+  export namespace Event {
+    /** Something that happened at the mine. */
+    export type Input =
+      | $Input<
+          {
+            kind: "Bought";
+          },
+          [$.crate.game.shop.Generator.Input]
+        >
+      | $Input<
+          {
+            kind: "Sold";
+          },
+          [
+            {
+              [key: string]: number;
+            },
+          ]
+        >
+      | $Input<
+          {
+            kind: "Calmed";
+          },
+          [$.crate.game.Calm.Input]
+        >
+      | $Input<
+          {
+            kind: "Changed";
+          },
+          [$.crate.game.Weather.Input]
+        >
+      | $Input<
+          {
+            kind: "Boosted";
+          },
+          [$.crate.game.Boost.Input]
+        >
+      | $Input<
+          {
+            kind: "Faded";
+          },
+          [$.crate.game.Boost.Input]
+        >
+      | $Input<
+          {
+            kind: "Stored";
+          },
+          [$.crate.game.Boost.Input]
+        >;
+  }
   /** The next tick's forecast. */
   export type Forecast = $Output<
     {
@@ -301,6 +381,10 @@ export namespace crate.game {
       ]
     >;
   }
+  /** Ore by kind, whatever names the kind. */
+  export type Tally<K> = {
+    [key: string]: number;
+  };
   /** A train, and the wagon it pulls. */
   export type Train = $Output<
     {

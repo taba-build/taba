@@ -106,3 +106,31 @@ export const case38: $.crate.game.Parcel.Input<$.crate.game.Weather.Input> = {
 };
 // serde_json reads this as a `Parcel`
 export const case39: $.crate.game.Parcel.Input<$.crate.game.Boost.Input | null> = { weight: 1 };
+// serde_json writes this for a `Event`
+export const case40: $.crate.game.Event = { kind: "Bought", price: 40 };
+// serde_json writes this for a `Event`
+export const case41: $.crate.game.Event = { kind: "Sold", copper: 3 };
+// serde_json writes this for a `Event`
+export const case42: $.crate.game.Event = { kind: 3 };
+// serde_json writes this for a `Event`
+export const case43: $.crate.game.Event = { kind: "Calmed" };
+// serde_json writes this for a `Event`
+export const case44: $.crate.game.Event = { kind: "Changed", Clear: null };
+// serde_json reads this as a `Event`
+export const case45: $.crate.game.Event.Input = { kind: "Bought", price: 40 };
+// @ts-expect-error serde_json: missing field `price`
+export const case46: $.crate.game.Event.Input = { kind: "Bought" };
+// serde_json reads this as a `Event`
+export const case47: $.crate.game.Event.Input = { kind: "Sold" };
+// serde_json reads this as a `Event`
+export const case48: $.crate.game.Event.Input = { kind: "Calmed" };
+// serde_json reads this as a `Event`
+export const case49: $.crate.game.Event.Input = { kind: "Changed", Clear: null };
+// serde_json reads this as a `Event`
+export const case50: $.crate.game.Event.Input = { kind: "Boosted", rate: 2 };
+// @ts-expect-error serde_json: missing field `rate`
+export const case51: $.crate.game.Event.Input = { kind: "Boosted" };
+// @ts-expect-error serde_json: missing field `rate`
+export const case52: $.crate.game.Event.Input = { kind: "Faded" };
+// @ts-expect-error serde_json: missing field `rate`
+export const case53: $.crate.game.Event.Input = { kind: "Stored" };

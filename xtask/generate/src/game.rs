@@ -226,6 +226,32 @@ struct Parcel<T> {
     contents: T,
 }
 
+/// Something that happened at the mine.
+#[derive(Serialize, Deserialize, Output, Input)]
+#[serde(tag = "kind")]
+enum Event {
+    Bought(shop::Generator),
+    Sold(BTreeMap<String, u32>),
+    Calmed(Calm),
+    Changed(Weather),
+    Boosted(Option<Boost>),
+    Faded(Spent),
+    Stored(Reserve),
+}
+
+/// A boost that ran out.
+#[derive(Serialize, Deserialize, Output, Input)]
+struct Spent(Option<Boost>);
+
+/// A boost kept for later.
+#[derive(Serialize, Deserialize, Output, Input)]
+#[serde(transparent)]
+struct Reserve(Option<Boost>);
+
+/// Ore by kind, whatever names the kind.
+#[derive(Serialize, Output)]
+struct Tally<K>(BTreeMap<K, u32>);
+
 pub(crate) fn declarations() -> Declarations {
     Declarations::new("generate")
         .output::<Mine>()
@@ -241,6 +267,8 @@ pub(crate) fn declarations() -> Declarations {
         .both::<Parcel<Calm>>()
         .both::<Parcel<Weather>>()
         .both::<Parcel<Option<Boost>>>()
+        .both::<Event>()
+        .output::<Tally<String>>()
 }
 
 pub(crate) fn cases() -> Cases {
@@ -329,6 +357,21 @@ pub(crate) fn cases() -> Cases {
     cases.input::<Parcel<Calm>>(r#"{"weight":1}"#);
     cases.input::<Parcel<Weather>>(r#"{"weight":1,"Clear":null}"#);
     cases.input::<Parcel<Option<Boost>>>(r#"{"weight":1}"#);
+
+    cases.output(&Event::Bought(shop::Generator { price: 40 }));
+    cases.output(&Event::Sold(ore([("copper", 3)])));
+    cases.output(&Event::Sold(ore([("kind", 3)])));
+    cases.output(&Event::Calmed(Calm));
+    cases.output(&Event::Changed(Weather::Clear));
+    cases.input::<Event>(r#"{"kind":"Bought","price":40}"#);
+    cases.input::<Event>(r#"{"kind":"Bought"}"#);
+    cases.input::<Event>(r#"{"kind":"Sold"}"#);
+    cases.input::<Event>(r#"{"kind":"Calmed"}"#);
+    cases.input::<Event>(r#"{"kind":"Changed","Clear":null}"#);
+    cases.input::<Event>(r#"{"kind":"Boosted","rate":2}"#);
+    cases.input::<Event>(r#"{"kind":"Boosted"}"#);
+    cases.input::<Event>(r#"{"kind":"Faded"}"#);
+    cases.input::<Event>(r#"{"kind":"Stored"}"#);
     cases
 }
 

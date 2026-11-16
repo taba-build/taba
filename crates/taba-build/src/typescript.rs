@@ -36,10 +36,10 @@ pub(crate) mod cases;
 /// The crate who represents `crate`.
 type CrateCrate = &'static str;
 
-/// The alias an `Input` object with [flattened](Rest::Flattened) parts goes through.
+/// The alias an `Input` object with [parts](Rest::Parts) goes through.
 const INPUT: &str = "$Input";
 
-/// The alias an `Output` object with [flattened](Rest::Flattened) parts goes through.
+/// The alias an `Output` object with [parts](Rest::Parts) goes through.
 const OUTPUT: &str = "$Output";
 
 /// A TypeScript module declaring Rust types.
@@ -119,8 +119,8 @@ impl Declarations {
             Shape::Object(object) => {
                 let shapes = object.properties.iter().map(|property| &property.shape);
                 self.add_all(shapes);
-                if let Rest::Flattened(flattened) = object.rest {
-                    self.add_all(flattened);
+                if let Rest::Parts(parts) = object.rest {
+                    self.add_all(parts);
                 }
             }
             Shape::Boolean
@@ -152,7 +152,7 @@ impl fmt::Display for Declarations {
     }
 }
 
-/// The aliases an object with flattened parts goes through, from `prelude.d.ts`.
+/// The aliases an object with [parts](Rest::Parts) goes through, from `prelude.d.ts`.
 fn prelude(allocator: &Allocator) -> ArenaVec<'_, Statement<'_>> {
     Parser::new(allocator, include_str!("prelude.d.ts"), SourceType::d_ts()).parse().program.body
 }
@@ -400,7 +400,7 @@ impl<'a> Declaring<'_, 'a> {
         TSType::new_ts_type_literal(SPAN, [index], ast)
     }
 
-    /// `{ ... }`, merged with [flattened](Rest::Flattened) parts through [`INPUT`] or [`OUTPUT`].
+    /// `{ ... }`, merged with [parts](Rest::Parts) through [`INPUT`] or [`OUTPUT`].
     fn object(&mut self, object: &Object) -> TSType<'a> {
         let ast = self.file.ast;
         let mut members = ArenaVec::new_in(ast);
@@ -418,7 +418,7 @@ impl<'a> Declaring<'_, 'a> {
             ));
         }
         let literal = TSType::new_ts_type_literal(SPAN, members, ast);
-        let Rest::Flattened(parts) = object.rest else {
+        let Rest::Parts(parts) = object.rest else {
             return literal;
         };
         self.file.prelude = true;
@@ -442,6 +442,8 @@ impl<'a> Declaring<'_, 'a> {
     fn union(&mut self, members: &[Shape]) -> TSType<'a> {
         let ast = self.file.ast;
         let mut members = flat(members);
+        // so `A | $Output<{ kind: "B" }, [never]>` prints as `A`
+        members.retain(|member| !is_never(member));
         // so `Option<Option<T>>` prints as `T | null`
         members.dedup_by(|a, b| matches!((a, b), (Shape::Null, Shape::Null)));
         let members = members.into_iter().map(|member| self.ts(member));
@@ -492,4 +494,15 @@ fn flat(members: &[Shape]) -> Vec<&Shape> {
         }
     }
     shapes
+}
+
+/// Whether `shape` is `never`, or an object with a `never` part.
+///
+/// `$Input` and `$Output` intersect every part's keys, so one `never` part makes the object `never`.
+fn is_never(shape: &Shape) -> bool {
+    match shape {
+        Shape::Never => true,
+        Shape::Object(Object { rest: Rest::Parts(parts), .. }) => parts.iter().any(is_never),
+        _ => false,
+    }
 }

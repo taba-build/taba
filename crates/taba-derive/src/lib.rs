@@ -11,7 +11,6 @@
 //!
 //! Not supported yet:
 //!
-//! * an internally tagged enum with a newtype variant
 //! * `untagged` on a variant of a tagged enum
 //! * `remote`, `variant_identifier` and `field_identifier` on a type
 //! * `with`, `serialize_with` and `deserialize_with` on a variant
@@ -121,6 +120,11 @@ impl Direction {
     fn shape(self, ty: impl ToTokens) -> Tokens {
         let path = self.trait_path();
         quote!(<#ty as #path>::__SHAPE)
+    }
+
+    fn tagged(self, ty: impl ToTokens) -> Tokens {
+        let path = self.trait_path();
+        quote!(<#ty as #path>::__TAGGED)
     }
 
     fn optional(self, ty: impl ToTokens) -> Option<Tokens> {
@@ -355,17 +359,20 @@ impl Expander<'_> {
         let path = self.direction.trait_path();
         let (impl_generics, ty_generics, where_clause) = self.container.generics.split_for_impl();
         let predicates = where_clause.map(|clause| &clause.predicates);
-        let optional_bound = self.optional_bound(source, parameters);
+        let inner = self.inner(source);
+        let inner_bound = self.inner_bound(inner.as_ref(), parameters);
         let optional = self.optional(source);
+        let tagged = self.tagged(inner.as_ref());
         quote! {
             impl #impl_generics #path for #ident #ty_generics
             where
                 #(#parameters: #path,)*
-                #optional_bound
+                #inner_bound
                 #predicates
             {
                 const __SHAPE: _taba::Shape = #reference;
                 #optional
+                #tagged
             }
         }
     }
@@ -391,13 +398,14 @@ impl Expander<'_> {
         quote!(_taba::Shape::Reference(#named, &[#(#arguments),*]))
     }
 
-    /// The bound `__OPTIONAL` needs at the real parameters.
+    /// The bound the items taken from `inner` need at the real parameters.
     ///
     /// `BTreeMap<T, u32>: Input` also needs `T: Key`.
-    fn optional_bound(&self, source: &Source, parameters: &[Ident]) -> Option<Tokens> {
-        let (Direction::Input, Source::Through(ty)) = (self.direction, source) else { return None };
+    fn inner_bound(&self, inner: Option<&syn::Type>, parameters: &[Ident]) -> Option<Tokens> {
+        let inner = inner?;
+        let path = self.direction.trait_path();
         // without parameters the bound adds nothing, and rustc would report a missing impl twice
-        (!parameters.is_empty()).then(|| quote!(#ty: _taba::Input,))
+        (!parameters.is_empty()).then(|| quote!(#inner: #path,))
     }
 
     /// The type parameters its TypeScript declaration takes, in order.
@@ -492,6 +500,27 @@ impl Expander<'_> {
         Some(quote!(const __OPTIONAL: bool = #optional;))
     }
 
+    /// The type serde hands the value to, whose impl this one takes items from.
+    ///
+    /// A newtype struct passes on only `__TAGGED`. serde reports its missing field even when it
+    /// holds an `Option`.
+    fn inner(&self, source: &Source) -> Option<syn::Type> {
+        match source {
+            Source::Through(ty) => Some((*ty).clone()),
+            Source::Own(Data::Struct(Style::Newtype, fields)) => {
+                let field = &fields[0];
+                Some(self.stand_in(&field.original.attrs).unwrap_or_else(|| field.ty.clone()))
+            }
+            Source::StandIn(_) | Source::Own(_) => None,
+        }
+    }
+
+    /// The type's `__TAGGED` item, taken from `inner`.
+    fn tagged(&self, inner: Option<&syn::Type>) -> Option<Tokens> {
+        let tagged = self.direction.tagged(inner?);
+        Some(quote!(const __TAGGED: _taba::Shape = #tagged;))
+    }
+
     fn struct_tag(&self) -> Option<Tokens> {
         let tag = self.direction.struct_tag(&self.container.attrs)?;
         let name = self.direction.name(self.container.attrs.name());
@@ -507,7 +536,7 @@ impl Expander<'_> {
             return object(properties, self.rest());
         }
         let shapes = flattened.iter().map(|field| self.flattened(field));
-        object(properties, quote!(_taba::Rest::Flattened(&[#(#shapes),*])))
+        object(properties, quote!(_taba::Rest::Parts(&[#(#shapes),*])))
     }
 
     /// The `Rest` of an object no field flattens into.
@@ -540,7 +569,7 @@ impl Expander<'_> {
         match style {
             Style::Struct => self.struct_object(None, fields),
             Style::Tuple => self.tuple(fields),
-            Style::Newtype => self.newtype(&fields[0]),
+            Style::Newtype => self.direction.shape(self.newtype(&fields[0])),
             Style::Unit => quote!(_taba::Shape::Null),
         }
     }
@@ -559,13 +588,14 @@ impl Expander<'_> {
         self.field_shape(field)
     }
 
-    fn newtype(&self, field: &Field) -> Tokens {
+    /// The type a newtype's JSON comes from.
+    fn newtype(&self, field: &Field) -> syn::Type {
         if self.direction.skips(&field.attrs) {
             // a newtype has only one field
             let message = "`skip` on a newtype's field isn't supported";
             self.ctxt.error_spanned_by(field.original, message);
         }
-        self.field_shape(field)
+        self.field_type(field)
     }
 
     fn property(&self, field: &Field) -> Tokens {
@@ -599,8 +629,12 @@ impl Expander<'_> {
     }
 
     fn field_shape(&self, field: &Field) -> Tokens {
-        let stand_in = self.field_stand_in(field);
-        self.direction.shape(stand_in.as_ref().unwrap_or(field.ty))
+        self.direction.shape(self.field_type(field))
+    }
+
+    /// The field's type, or the type `#[taba(...)]` names for it.
+    fn field_type(&self, field: &Field) -> syn::Type {
+        self.field_stand_in(field).unwrap_or_else(|| field.ty.clone())
     }
 
     fn field_stand_in(&self, field: &Field) -> Option<syn::Type> {
@@ -705,18 +739,15 @@ impl Expander<'_> {
     fn internally_tagged(&self, tag: &str, variant: &Variant) -> Tokens {
         let name = self.direction.name(variant.attrs.name());
         let tag = required(tag, literal(&name));
-        match (variant.style, variant.fields.as_slice()) {
+        match variant.style {
             // serde takes extra keys here, with `deny_unknown_fields` or without
-            (Style::Unit, _) => object([tag], quote!(_taba::Rest::Ignored)),
-            (Style::Struct, fields) => self.struct_object(Some(tag), fields),
-            // let newtype refuse it, skip is never supported
-            (Style::Newtype, [field]) if self.direction.skips(&field.attrs) => self.newtype(field),
-            (Style::Newtype, _) => {
-                let message = "internally tagged newtype variants aren't supported yet";
-                self.ctxt.error_spanned_by(variant.original, message);
-                quote!(_taba::Shape::Never)
+            Style::Unit => object([tag], quote!(_taba::Rest::Ignored)),
+            Style::Struct => self.struct_object(Some(tag), &variant.fields),
+            Style::Newtype => {
+                let inner = self.direction.tagged(self.newtype(&variant.fields[0]));
+                object([tag], quote!(_taba::Rest::Parts(&[#inner])))
             }
-            (Style::Tuple, _) => {
+            Style::Tuple => {
                 unreachable!("serde_derive_internals refuses tuple variants under internal tagging")
             }
         }
