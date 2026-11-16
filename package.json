@@ -7,7 +7,7 @@
   "scripts": {
     "fmt": "oxfmt",
     "lint": "oxlint",
-    "typecheck": "pnpm -r run typecheck && tsc -p crates/taba-tauri",
+    "typecheck": "tsc -b --noEmit",
     "build": "pnpm -r run build"
   },
   "devDependencies": {

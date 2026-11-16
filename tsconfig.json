@@ -1,0 +1,9 @@
+{
+  "files": [/* check only the references */],
+  "references": [
+    { "path": "packages/rpc" },
+    { "path": "crates/taba-tauri" },
+    { "path": "crates/taba-build" },
+    { "path": "xtask" }
+  ]
+}

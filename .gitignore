@@ -4,6 +4,7 @@
 # node
 node_modules/
 /packages/*/dist/
+*.tsbuildinfo
 
 # rust
 /target/

@@ -1,0 +1,5 @@
+{
+  // checks src/prelude.d.ts, which gets copied into generated declarations. skipLibCheck would skip it, like any .d.ts
+  "extends": "../../tsconfig.base.json",
+  "include": ["src"]
+}

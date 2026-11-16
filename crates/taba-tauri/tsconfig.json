@@ -1,12 +1,13 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "node18",
-    "target": "es2021",
-    "strict": true,
-    "noUncheckedIndexedAccess": true,
-    "verbatimModuleSyntax": true,
-    "erasableSyntaxOnly": true,
-    "skipLibCheck": true,
+    "target": "es2021", // what Safari on taba's oldest macOS runs
+    "lib": [
+      "es2021",
+      "dom",
+      "esnext.disposable" // Tauri's Resource types, although we don't use Resource ourselves. https://v2.tauri.app/reference/javascript/api/namespacecore/#resource
+    ],
     "noEmit": true
   },
   "include": ["src"]

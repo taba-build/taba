@@ -21,7 +21,6 @@
   },
   "scripts": {
     "build": "rm -rf dist && tsc",
-    "prepack": "pnpm run build",
-    "typecheck": "tsc --noEmit"
+    "prepack": "pnpm run build"
   }
 }

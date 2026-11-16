@@ -3,8 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "rolldown": "node src/rolldown.ts",
-    "typecheck": "tsc"
+    "rolldown": "node src/rolldown.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.6"

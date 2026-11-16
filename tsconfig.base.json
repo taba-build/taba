@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    // oxlint handles style checks like noUnusedLocals
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true
+  }
+}
