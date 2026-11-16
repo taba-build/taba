@@ -44,11 +44,21 @@ struct Mine<'a> {
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     boost: Option<Boost>,
 
+    #[serde(flatten)]
+    weather: Weather,
+
     /// What's on its way.
     incoming: Vec<Shipment<shop::Generator>>,
 
     /// The generator that dug last.
     last_digger: Id<Generator>,
+}
+
+/// The weather over the mine.
+#[derive(Serialize, Output)]
+enum Weather {
+    Clear,
+    Storm { strength: u32 },
 }
 
 /// An id for one kind of thing.
@@ -124,6 +134,8 @@ fn every_shape_kind() {
         Declarations::new("typescript").output::<Mine>().output::<Unreachable>().input::<Buy>();
     insta::assert_snapshot!(declarations, @r#"
     import type * as $ from "./taba.js";
+    type $Flattened<T> = T extends null ? {} : T extends string ? $UnitVariant<T> : T;
+    type $UnitVariant<Name extends string> = string extends Name ? never : { [Variant in Name]: null };
     export namespace serde_json.value {
     	export type Value = null | boolean | number | string | $.serde_json.value.Value[] | {
     		[key: string]: $.serde_json.value.Value;
@@ -185,14 +197,14 @@ fn every_shape_kind() {
     		incoming: $.crate.Shipment<$.crate.shop.Generator>[];
     		/** The generator that dug last. */
     		last_digger: $.crate.Id;
-    	} & (($.crate.Boost | {}) | {});
+    	} & $Flattened<($.crate.Boost | null) | null> & $Flattened<$.crate.Weather>;
     	/** Something on its way to the mine. */
     	export type Shipment<T> = {
     		/** Ticks until it arrives. */
     		eta: number;
     		/** The shipment after it. */
     		next: $.crate.Shipment<T> | null;
-    	} & (T extends null ? {} : T);
+    	} & $Flattened<T>;
     	export namespace Shipment {
     		/** Something on its way to the mine. */
     		export type Input<T> = {
@@ -200,9 +212,15 @@ fn every_shape_kind() {
     			eta: number;
     			/** The shipment after it. */
     			next?: $.crate.Shipment.Input<T> | null;
-    		} & (T extends null ? {} : T);
+    		} & $Flattened<T>;
     	}
     	export type Unreachable = never;
+    	/** The weather over the mine. */
+    	export type Weather = "Clear" | {
+    		Storm: {
+    			strength: number;
+    		};
+    	};
     }
     export namespace crate.shop {
     	/** A generator for sale. */

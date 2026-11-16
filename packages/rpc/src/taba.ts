@@ -1,4 +1,6 @@
 import type * as $ from "./taba.js";
+type $Flattened<T> = T extends null ? {} : T extends string ? $UnitVariant<T> : T;
+type $UnitVariant<Name extends string> = string extends Name ? never : { [Variant in Name]: null };
 export namespace serde_json.value {
   export type Value =
     | null
@@ -38,7 +40,7 @@ export namespace crate.rpc.wire {
   export type Frame = {
     /** Its message's id. */
     id: number;
-  } & $.crate.rpc.wire.Kind;
+  } & $Flattened<$.crate.rpc.wire.Kind>;
   /** What a frame tells TypeScript. */
   export type Kind =
     | {

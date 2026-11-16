@@ -25,12 +25,16 @@ use taba_rolldown::oxc::{
         builder::AstBuilder,
     },
     codegen::Codegen,
+    parser::Parser,
     span::{SPAN, SourceType, Span},
     syntax::identifier::is_identifier_name_patched,
 };
 
 /// The crate who represents `crate`.
 type CrateCrate = &'static str;
+
+/// The alias a flattened reference or type parameter goes through.
+const FLATTENED: &str = "$Flattened";
 
 /// A TypeScript module declaring Rust types.
 ///
@@ -135,12 +139,15 @@ impl fmt::Display for Declarations {
         let allocator = Allocator::default();
         let ast = AstBuilder::new(&allocator);
         let docs = Docs::default();
-        let mut printer = Printer { ast: &ast, crate_: self.crate_, docs, parameters: &[] };
+        let mut printer =
+            Printer { ast: &ast, crate_: self.crate_, docs, parameters: &[], uses_prelude: false };
         let import = printer.import_self();
         let types: Vec<_> = self.types.iter().map(|declared| declared.0).collect();
         let modules = types.chunk_by(|first, second| first.module_path == second.module_path);
-        let modules = modules.filter_map(|types| printer.module(types));
-        let body = ArenaVec::from_iter_in(iter::once(import).chain(modules), &ast);
+        let modules: Vec<_> = modules.filter_map(|types| printer.module(types)).collect();
+        let prelude = printer.uses_prelude.then(|| prelude(&allocator));
+        let statements = iter::once(import).chain(prelude.into_iter().flatten()).chain(modules);
+        let body = ArenaVec::from_iter_in(statements, &ast);
         let source = allocator.alloc_str(&printer.docs.source);
         let program = Program::new(
             SPAN,
@@ -154,6 +161,11 @@ impl fmt::Display for Declarations {
         );
         f.write_str(&Codegen::new().build(&program).code)
     }
+}
+
+/// The aliases declarations use, declared at the top of a file that needs them.
+fn prelude(allocator: &Allocator) -> ArenaVec<'_, Statement<'_>> {
+    Parser::new(allocator, include_str!("prelude.d.ts"), SourceType::d_ts()).parse().program.body
 }
 
 /// The program's source text, written only to hold doc comments.
@@ -232,6 +244,9 @@ struct Printer<'a> {
 
     /// The names each [`Shape::Parameter`] indexes, for the type being declared.
     parameters: &'static [&'static str],
+
+    /// Whether a declaration uses an alias from [`prelude`], which the file then declares.
+    uses_prelude: bool,
 }
 
 impl<'a> Printer<'a> {
@@ -392,22 +407,11 @@ impl<'a> Printer<'a> {
     /// The keys a [flattened](Rest::Flattened) `shape` adds.
     fn flattened(&mut self, shape: &Shape) -> TSType<'a> {
         let ast = self.ast;
-        match shape {
-            Shape::Null => TSType::new_ts_type_literal(SPAN, [], ast),
-            Shape::Union(members) => {
-                let members = members.iter().map(|member| self.flattened(member));
-                TSType::new_ts_union_type(SPAN, ArenaVec::from_iter_in(members, ast), ast)
-            }
-            Shape::Parameter(_) => {
-                // `T extends null ? {} : T`, since `T` can be an `Option`
-                let check = self.ts(shape);
-                let null = TSType::new_ts_null_keyword(SPAN, ast);
-                let none = TSType::new_ts_type_literal(SPAN, [], ast);
-                let some = self.ts(shape);
-                TSType::new_ts_conditional_type(SPAN, check, null, none, some, ast)
-            }
-            shape => self.ts(shape),
-        }
+        self.uses_prelude = true;
+        let name = TSTypeName::new_identifier_reference(SPAN, FLATTENED, ast);
+        let argument = ArenaVec::from_array_in([self.ts(shape)], ast);
+        let arguments = TSTypeParameterInstantiation::boxed(SPAN, argument, ast);
+        TSType::new_ts_type_reference(SPAN, name, Some(arguments), ast)
     }
 
     fn union(&mut self, members: &[Shape]) -> TSType<'a> {
