@@ -14,7 +14,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::value::{RawValue, to_raw_value};
 
 use self::sealed::Erased;
-use super::{Once, Output, Procedure, Strand, wire::Kind};
+use super::{IntoReply, Once, Procedure, Strand, wire::Kind};
 
 /// Procedures, and the handlers an app attaches.
 ///
@@ -57,33 +57,33 @@ impl<S> Procedures<S> {
         Procedures { names: self.names, state }
     }
 
-    /// Answers `P` with `handler`.
+    /// Replies to `P` with `handler`.
     pub fn handle<H, Args, P>(self, handler: H) -> Self
     where
         H: Handler<Args, S, Request = P> + Send + Sync + 'static,
         P: DeserializeOwned + Procedure,
-        P::Output: Output,
-        H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
+        P::Output: IntoReply,
+        H::Return: Replies<<P::Output as IntoReply>::Reply, P::Error>,
         S: Clone + Send + Sync + 'static,
     {
         let state = self.state.clone();
         self.handle_with(state, handler)
     }
 
-    /// Answers `P` with `handler`, which gets its own `state`.
+    /// Replies to `P` with `handler`, which gets its own `state`.
     pub fn handle_with<S2, H, Args, P>(mut self, state: S2, handler: H) -> Self
     where
         H: Handler<Args, S2, Request = P> + Send + Sync + 'static,
         P: DeserializeOwned + Procedure,
-        P::Output: Output,
-        H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
+        P::Output: IntoReply,
+        H::Return: Replies<<P::Output as IntoReply>::Reply, P::Error>,
         S2: Clone + Send + Sync + 'static,
     {
         let parsed = move |request: &RawValue| match serde_json::from_str::<P>(request.get()) {
             Ok(request) => Ok(handler.call(state.clone(), request)),
             Err(error) => Err(Kind::invalid(error)),
         };
-        let erased = H::Response::erase(parsed);
+        let erased = H::Return::erase(parsed);
         self.names.entry(Self::name::<P>()).or_default().handlers.push(erased);
         self
     }
@@ -118,16 +118,16 @@ impl<S> Procedures<S> {
     }
 }
 
-/// A function that answers a procedure.
+/// A function that replies to a procedure.
 pub trait Handler<Args, S> {
-    /// The procedure it answers.
+    /// The procedure it replies to.
     type Request;
 
-    /// Its answer.
-    type Response;
+    /// A future for a call, or a stream for a subscription.
+    type Return;
 
-    /// Answers `request`, given the app's state.
-    fn call(&self, state: S, request: Self::Request) -> Self::Response;
+    /// Replies to `request`, given the app's state.
+    fn call(&self, state: S, request: Self::Request) -> Self::Return;
 }
 
 impl<F, Fut, P, S> Handler<(P,), S> for F
@@ -135,7 +135,7 @@ where
     F: Fn(P) -> Fut,
 {
     type Request = P;
-    type Response = Fut;
+    type Return = Fut;
 
     fn call(&self, _: S, request: P) -> Fut {
         self(request)
@@ -147,7 +147,7 @@ where
     F: Fn(State<S>, P) -> Fut,
 {
     type Request = P;
-    type Response = Fut;
+    type Return = Fut;
 
     fn call(&self, state: S, request: P) -> Fut {
         self(State(state), request)
@@ -165,7 +165,7 @@ pub struct Router {
 }
 
 impl Router {
-    /// Answers a call.
+    /// Replies to a call.
     pub(crate) fn call(
         &self,
         name: &str,
@@ -177,7 +177,7 @@ impl Router {
         }
     }
 
-    /// Answers a subscription, a frame per item, until its handler's stream ends.
+    /// Replies to a subscription, a frame per item, until its handler's stream ends.
     pub(crate) fn subscribe(
         &self,
         name: &str,
@@ -190,18 +190,18 @@ impl Router {
     }
 }
 
-/// What a handler returns, answering a procedure whose output has the shape `O`.
+/// What a handler returns, for a procedure whose reply is `R`.
 ///
-/// A future answers [`Once`], and a stream answers [`Strand`]. Sitting on what the handler
+/// A future fits a [`Once`] reply, and a stream fits a [`Strand`]. Sitting on what the handler
 /// returns puts that type first in rustc's errors.
 ///
 /// [Sealed](https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed).
-pub trait Answers<O, E>: Sized {
+pub trait Replies<R, E>: Sized {
     #[doc(hidden)]
     fn erase(parsed: impl Fn(&RawValue) -> Result<Self, Kind> + Send + Sync + 'static) -> Erased;
 }
 
-impl<Fut, T, E> Answers<Once<T>, E> for Fut
+impl<Fut, T, E> Replies<Once<T>, E> for Fut
 where
     Fut: Future<Output = Result<T, E>> + Send + 'static,
     T: Serialize + 'static,
@@ -209,13 +209,13 @@ where
 {
     fn erase(parsed: impl Fn(&RawValue) -> Result<Fut, Kind> + Send + Sync + 'static) -> Erased {
         Erased::Call(Box::new(move |request| match parsed(request) {
-            Ok(future) => future.map(answer).boxed(),
+            Ok(future) => future.map(reply).boxed(),
             Err(reject) => ready(reject).boxed(),
         }))
     }
 }
 
-impl<St, T, E> Answers<Strand<T>, E> for St
+impl<St, T, E> Replies<Strand<T>, E> for St
 where
     St: Stream<Item = Result<T, E>> + Send + 'static,
     T: Serialize + 'static,
@@ -223,14 +223,14 @@ where
 {
     fn erase(parsed: impl Fn(&RawValue) -> Result<St, Kind> + Send + Sync + 'static) -> Erased {
         Erased::Strand(Box::new(move |request| match parsed(request) {
-            Ok(stream) => stream.map(answer).boxed(),
+            Ok(stream) => stream.map(reply).boxed(),
             Err(reject) => stream::once(ready(reject)).boxed(),
         }))
     }
 }
 
 mod sealed {
-    //! [Seals] [`Answers`](super::Answers) through `erase`'s return type.
+    //! [Seals] [`Replies`](super::Replies) through `erase`'s return type.
     //!
     //! [Seals]: https://rust-lang.github.io/api-guidelines/future-proofing.html#sealed-traits-protect-against-downstream-implementations-c-sealed
 
@@ -248,7 +248,7 @@ mod sealed {
         Strand(OnRequest<BoxStream<'static, Kind>>),
     }
 
-    /// Parses a request and starts its handler, so the answer borrows nothing.
+    /// Parses a request and starts its handler, so the reply borrows nothing.
     type OnRequest<T> = Box<dyn Fn(&RawValue) -> T + Send + Sync>;
 
     impl fmt::Debug for Erased {
@@ -259,7 +259,7 @@ mod sealed {
 }
 
 /// A handler's result as its frame, rejected when serde can't encode it.
-fn answer<T: Serialize, E: Serialize>(result: Result<T, E>) -> Kind {
+fn reply<T: Serialize, E: Serialize>(result: Result<T, E>) -> Kind {
     let encoded = match result {
         Ok(output) => to_raw_value(&output).map(Kind::Value),
         Err(error) => to_raw_value(&error).map(Kind::Error),
@@ -308,7 +308,7 @@ mod tests {
     use crate::rpc::tests::{Buy, BuyError, Game, Generator, Hire, Ore, Sell};
 
     #[test]
-    fn every_answer_kind() {
+    fn every_reply_kind() {
         async fn buy(State(game): State<Game>, Buy { generator }: Buy) -> Result<u32, BuyError> {
             match generator {
                 Generator::Drill => Ok(game.drills),
@@ -330,12 +330,12 @@ mod tests {
             ("taba::rpc::tests::Hire", "null"),
             ("taba::rpc::tests::Ore", "null"),
         ];
-        let answers = calls.map(|(name, request)| {
+        let replies = calls.map(|(name, request)| {
             let request = RawValue::from_string(request.into()).unwrap();
-            let answer = router.call(name, &request).now_or_never().unwrap();
-            serde_json::to_string(&answer).unwrap()
+            let reply = router.call(name, &request).now_or_never().unwrap();
+            serde_json::to_string(&reply).unwrap()
         });
-        insta::assert_snapshot!(answers.join("\n"), @r#"
+        insta::assert_snapshot!(replies.join("\n"), @r#"
         {"kind":"value","value":3}
         {"kind":"error","value":{"CantAfford":{"missing":30}}}
         {"kind":"reject","value":{"kind":"invalid","value":"missing field `generator` at line 1 column 20"}}

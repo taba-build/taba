@@ -129,7 +129,7 @@ pub enum Rejection {
     /// A request serde can't parse, and why.
     Invalid(String),
 
-    /// An answer serde can't encode, and why.
+    /// A handler's result serde can't encode, and why.
     Unencodable(String),
 
     /// A handler's panic.

@@ -139,7 +139,7 @@ struct Session {
     address: String,
 
     /// Tasks post frames to it, and a poll takes them from `poll`.
-    mailbox: Sender<Frame>,
+    mailbox: Mailbox,
 
     /// How many `next`s each running strand hasn't answered yet.
     nexts: BTreeMap<SafeInteger, Arc<Semaphore>>,
@@ -157,6 +157,7 @@ impl Session {
     /// Its mailbox holds one frame, so a task posting waits until a poll takes the last one.
     fn new(address: String) -> Self {
         let (mailbox, poll) = mpsc::channel(1);
+        let mailbox = Mailbox(mailbox);
         let poll = Arc::new(tokio::sync::Mutex::new(poll));
         Self { address, mailbox, poll, tasks: JoinMap::new(), nexts: BTreeMap::new() }
     }
@@ -173,9 +174,9 @@ impl Session {
         match message {
             Message::Call(id, name, request) => {
                 let router = Arc::clone(router);
-                let reply = self.reply(id);
-                let task = guarded(reply.clone(), async move {
-                    reply.post(router.call(&name, &request).await).await;
+                let mailbox = self.mailbox.clone();
+                let task = mailbox.clone().guarded(id, async move {
+                    mailbox.post(id, router.call(&name, &request).await).await;
                 });
                 self.tasks.spawn_on(id, task, runtime);
             }
@@ -186,8 +187,9 @@ impl Session {
                 let frames = async move { router.subscribe(&name, &request) }.flatten_stream();
 
                 let nexts = Arc::new(Semaphore::new(0));
-                let reply = self.reply(id);
-                let task = guarded(reply.clone(), deliver(reply, frames, Arc::clone(&nexts)));
+                let mailbox = self.mailbox.clone();
+                let delivered = mailbox.clone().deliver(id, frames, Arc::clone(&nexts));
+                let task = mailbox.guarded(id, delivered);
                 self.tasks.spawn_on(id, task, runtime);
                 self.nexts.insert(id, nexts);
             }
@@ -202,32 +204,44 @@ impl Session {
             }
         }
     }
-
-    fn reply(&self, id: SafeInteger) -> Reply {
-        Reply { id, mailbox: self.mailbox.clone() }
-    }
 }
 
-/// Where one request's frames go.
-#[derive(Clone)]
-struct Reply {
-    id: SafeInteger,
-    mailbox: Sender<Frame>,
-}
+/// Where a session's tasks post their frames.
+#[derive(Clone, Debug)]
+struct Mailbox(Sender<Frame>);
 
-impl Reply {
-    /// Waits for room in the mailbox, then posts `kind` under this request's id.
-    async fn post(&self, kind: Kind) {
+impl Mailbox {
+    /// Waits for room, then posts `kind` under the request `id`.
+    async fn post(&self, id: SafeInteger, kind: Kind) {
         // send fails only once the session ends and drops the receiver
-        let _ = self.mailbox.send(Frame { id: self.id, kind }).await;
+        let _ = self.0.send(Frame { id, kind }).await;
     }
-}
 
-/// Runs one request's task, rejecting the request if the app's code panics.
-async fn guarded(reply: Reply, task: impl Future<Output = ()>) {
-    if let Err(payload) = AssertUnwindSafe(task).catch_unwind().await {
-        let message = panic_message(&*payload).to_owned();
-        reply.post(Kind::Reject(Rejection::Panic(message))).await;
+    /// Answers each `next` with one frame, until the strand's first frame that isn't a value.
+    async fn deliver(
+        self,
+        id: SafeInteger,
+        frames: impl Stream<Item = Kind>,
+        nexts: Arc<Semaphore>,
+    ) {
+        let mut frames = pin!(frames);
+        while let Ok(owed) = nexts.acquire().await {
+            owed.forget();
+            let kind = frames.next().await.unwrap_or(Kind::End);
+            let is_last = !matches!(kind, Kind::Value(_));
+            self.post(id, kind).await;
+            if is_last {
+                return;
+            }
+        }
+    }
+
+    /// Runs request `id`'s task, rejecting the request if the app's code panics.
+    async fn guarded(self, id: SafeInteger, task: impl Future<Output = ()>) {
+        if let Err(payload) = AssertUnwindSafe(task).catch_unwind().await {
+            let message = panic_message(&*payload).to_owned();
+            self.post(id, Kind::Reject(Rejection::Panic(message))).await;
+        }
     }
 }
 
@@ -239,20 +253,6 @@ fn panic_message(payload: &(dyn Any + Send)) -> &str {
         message
     } else {
         "Box<dyn Any>"
-    }
-}
-
-/// Answers each `next` with one frame, until the strand's first frame that isn't a value.
-async fn deliver(reply: Reply, frames: impl Stream<Item = Kind>, nexts: Arc<Semaphore>) {
-    let mut frames = pin!(frames);
-    while let Ok(owed) = nexts.acquire().await {
-        owed.forget();
-        let kind = frames.next().await.unwrap_or(Kind::End);
-        let is_last = !matches!(kind, Kind::Value(_));
-        reply.post(kind).await;
-        if is_last {
-            return;
-        }
     }
 }
 

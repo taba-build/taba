@@ -13,7 +13,7 @@ use serde::{Serialize, Serializer};
 
 pub use self::{
     error::Error,
-    router::{Answers, BuildError, Handler, Procedures, Router, State},
+    router::{BuildError, Handler, Procedures, Replies, Router, State},
     sessions::{SessionId, Sessions},
     wire::Frame,
 };
@@ -62,18 +62,18 @@ pub trait Procedure: Request {
     type Error;
 }
 
-/// How a procedure's [`Output`](Procedure::Output) is answered.
-pub trait Output {
+/// How a procedure replies with its [`Output`](Procedure::Output).
+pub trait IntoReply {
     /// [`Once`] for a call, [`Strand`] for a subscription.
-    type Shape;
+    type Reply;
 }
 
-impl<T: Serialize> Output for T {
-    type Shape = Once<T>;
+impl<T: Serialize> IntoReply for T {
+    type Reply = Once<T>;
 }
 
-impl<T> Output for Strand<T> {
-    type Shape = Strand<T>;
+impl<T> IntoReply for Strand<T> {
+    type Reply = Strand<T>;
 }
 
 /// A call's `T`, wrapped so rustc names the bound a handler missed.

@@ -1,4 +1,4 @@
-//! An idle game's procedures, for tests to answer with handlers of their own.
+//! An idle game's procedures, for tests to reply to with handlers of their own.
 
 use std::prelude::rust_2024::*;
 

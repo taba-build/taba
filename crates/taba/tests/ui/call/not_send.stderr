@@ -19,5 +19,5 @@ note: required by a bound in `Procedures::<S>::handle`
 ...
    |     pub fn handle<H, Args, P>(self, handler: H) -> Self
 ...
-   |         H::Response: Answers<<P::Output as Output>::Shape, P::Error>,
-   |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Procedures::<S>::handle`
+   |         H::Return: Replies<<P::Output as IntoReply>::Reply, P::Error>,
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Procedures::<S>::handle`
