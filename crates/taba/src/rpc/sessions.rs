@@ -270,7 +270,7 @@ mod tests {
 
     use super::{SessionId, Sessions};
     use crate::rpc::{
-        Error, Never, Procedures, Router,
+        Error, Never, Router,
         tests::{Buy, Ore},
     };
 
@@ -311,7 +311,8 @@ mod tests {
     #[test]
     fn a_call_answers_under_its_id() {
         let buy = |_: Buy| ready(Ok(3));
-        let backend = Backend::new(Procedures::new().declare::<Buy>().handle(buy).build().unwrap());
+        let builder = Router::builder([crate::procedures!().declare::<Buy>()]);
+        let backend = Backend::new(builder.handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let call = json!([{ "kind": "call", "value": [42, "taba::rpc::tests::Buy", { "generator": "Drill" }] }]);
         backend.send("main", id, call).unwrap();
@@ -322,8 +323,8 @@ mod tests {
     fn a_strand_waits_for_each_next_until_it_ends() {
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
         let buy = |_: Buy| ready(Ok(10));
-        let procedures = Procedures::new().declare::<Ore>().declare::<Buy>();
-        let backend = Backend::new(procedures.handle(ore).handle(buy).build().unwrap());
+        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batches = [
             json!([
@@ -355,8 +356,8 @@ mod tests {
     fn a_strand_answers_every_next() {
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
         let buy = |_: Buy| ready(Ok(10));
-        let procedures = Procedures::new().declare::<Ore>().declare::<Buy>();
-        let backend = Backend::new(procedures.handle(ore).handle(buy).build().unwrap());
+        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batch = json!([
             { "kind": "subscribe", "value": [0, "taba::rpc::tests::Ore", null] },
@@ -376,8 +377,8 @@ mod tests {
     fn a_strand_starts_at_its_first_next() {
         let ore = |_: Ore| -> Empty<Result<u32, Never>> { panic!("the mine flooded") };
         let buy = |_: Buy| ready(Ok(10));
-        let procedures = Procedures::new().declare::<Ore>().declare::<Buy>();
-        let backend = Backend::new(procedures.handle(ore).handle(buy).build().unwrap());
+        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batches = [
             json!([
@@ -400,8 +401,8 @@ mod tests {
     fn a_cancel_stops_its_strand() {
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
         let buy = |_: Buy| ready(Ok(10));
-        let procedures = Procedures::new().declare::<Ore>().declare::<Buy>();
-        let backend = Backend::new(procedures.handle(ore).handle(buy).build().unwrap());
+        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batch = json!([
             { "kind": "subscribe", "value": [0, "taba::rpc::tests::Ore", null] },
@@ -420,8 +421,8 @@ mod tests {
             panic!("the mine flooded at depth {depth}")
         };
         let buy = |_: Buy| ready(Ok(10));
-        let procedures = Procedures::new().declare::<Ore>().declare::<Buy>();
-        let backend = Backend::new(procedures.handle(ore).handle(buy).build().unwrap());
+        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batches = [
             json!([
@@ -442,7 +443,7 @@ mod tests {
 
     #[test]
     fn an_ended_session_refuses_its_requests() {
-        let backend = Backend::new(Procedures::new().build().unwrap());
+        let backend = Backend::new(Router::builder([]).build().unwrap());
         let old = backend.sessions.connect("main");
         let held = backend.sessions.poll("main", &serde_json::to_vec(&old).unwrap());
         backend.sessions.end("main");
@@ -462,7 +463,8 @@ mod tests {
     #[test]
     fn a_session_answers_only_its_address() {
         let buy = |_: Buy| ready(Ok(10));
-        let backend = Backend::new(Procedures::new().declare::<Buy>().handle(buy).build().unwrap());
+        let builder = Router::builder([crate::procedures!().declare::<Buy>()]);
+        let backend = Backend::new(builder.handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let call = json!([{ "kind": "call", "value": [0, "taba::rpc::tests::Buy", { "generator": "Drill" }] }]);
         let elsewhere = backend.send("other", id, call.clone()).unwrap_err().to_string();
@@ -476,7 +478,7 @@ mod tests {
 
     #[test]
     fn a_malformed_body_says_why() {
-        let backend = Backend::new(Procedures::new().build().unwrap());
+        let backend = Backend::new(Router::builder([]).build().unwrap());
         let error = backend.sessions.send("main", br#"{"session":0,"batch":[]}"#).unwrap_err();
         insta::assert_snapshot!(error, @"can't read what was sent: invalid type: map, expected tuple struct Batch at line 1 column 0");
     }

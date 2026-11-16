@@ -143,7 +143,7 @@ fn bytes(body: &InvokeBody) -> Result<Cow<'_, [u8]>, InvokeError> {
 #[cfg(test)]
 mod tests {
     use serde_json::{Value, json};
-    use taba::rpc::{Procedures, Router, SessionId};
+    use taba::rpc::{Router, SessionId};
     use tauri::{
         App, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
         http::HeaderMap,
@@ -204,7 +204,7 @@ mod tests {
     }
 
     fn router() -> Router {
-        Procedures::new().build().unwrap()
+        Router::builder([]).build().unwrap()
     }
 
     #[test]

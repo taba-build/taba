@@ -2,7 +2,7 @@
 
 use futures_util::{Stream, stream};
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Procedures}};
+use taba::{Input, rpc::{Never, Procedure, Router}};
 
 #[derive(Deserialize, Input)]
 struct Buy;
@@ -17,5 +17,5 @@ fn buy(_: Buy) -> impl Stream<Item = Result<u32, Never>> {
 }
 
 fn main() {
-    Procedures::new().handle(buy);
+    Router::builder([taba::procedures!().declare::<Buy>()]).handle(buy);
 }

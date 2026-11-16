@@ -1,7 +1,7 @@
 //! A handler that reads a state other than the one it's given.
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Procedures, State}};
+use taba::{Input, rpc::{Never, Procedure, Router, State}};
 
 #[derive(Clone)]
 struct Game;
@@ -22,5 +22,5 @@ async fn buy(State(_): State<Shop>, _: Buy) -> Result<u32, Never> {
 }
 
 fn main() {
-    Procedures::new().with_state(Game).handle(buy);
+    Router::builder([taba::procedures!().declare::<Buy>()]).with_state(Game).handle(buy);
 }

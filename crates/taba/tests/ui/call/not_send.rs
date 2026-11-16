@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Procedures}};
+use taba::{Input, rpc::{Never, Procedure, Router}};
 
 #[derive(Deserialize, Input)]
 struct Buy;
@@ -20,5 +20,5 @@ async fn buy(_: Buy) -> Result<u32, Never> {
 }
 
 fn main() {
-    Procedures::new().handle(buy);
+    Router::builder([taba::procedures!().declare::<Buy>()]).handle(buy);
 }

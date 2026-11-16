@@ -15,12 +15,32 @@ use serde_json::value::{RawValue, to_raw_value};
 
 use self::sealed::Erased;
 use super::{IntoReply, Once, Procedure, Strand, wire::Kind};
+use crate::typescript::Named;
 
-/// Procedures, and the handlers an app attaches.
+/// A list of procedures, started with [`procedures!`](crate::procedures).
+#[derive(Debug)]
+pub struct Procedures {
+    declarations: Vec<fn() -> &'static Named>,
+}
+
+impl Procedures {
+    #[doc(hidden)]
+    pub fn __new() -> Self {
+        Self { declarations: Vec::new() }
+    }
+
+    /// Adds `P`.
+    pub fn declare<P: Procedure>(mut self) -> Self {
+        self.declarations.push(P::named);
+        self
+    }
+}
+
+/// A [`Router`] being assembled.
 ///
 /// `S` is the state the next handlers get, `()` until [`with_state`](Self::with_state) is called.
 #[derive(Debug)]
-pub struct Procedures<S = ()> {
+pub struct Builder<S = ()> {
     names: BTreeMap<String, Pairing>,
     state: S,
 }
@@ -32,29 +52,10 @@ struct Pairing {
     handlers: Vec<Erased>,
 }
 
-impl Procedures {
-    /// An empty list.
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl Default for Procedures {
-    fn default() -> Self {
-        Self { names: BTreeMap::new(), state: () }
-    }
-}
-
-impl<S> Procedures<S> {
-    /// Adds `P`.
-    pub fn declare<P: Procedure>(mut self) -> Self {
-        self.names.entry(Self::name::<P>()).or_default().declared = true;
-        self
-    }
-
+impl<S> Builder<S> {
     /// Gives the next handlers `state`.
-    pub fn with_state<S2>(self, state: S2) -> Procedures<S2> {
-        Procedures { names: self.names, state }
+    pub fn with_state<S2>(self, state: S2) -> Builder<S2> {
+        Builder { names: self.names, state }
     }
 
     /// Replies to `P` with `handler`.
@@ -84,7 +85,7 @@ impl<S> Procedures<S> {
             Err(error) => Err(Kind::invalid(error)),
         };
         let erased = H::Return::erase(parsed);
-        self.names.entry(Self::name::<P>()).or_default().handlers.push(erased);
+        self.names.entry(name(P::named())).or_default().handlers.push(erased);
         self
     }
 
@@ -110,12 +111,11 @@ impl<S> Procedures<S> {
         }
         Ok(Router { handlers: paired })
     }
+}
 
-    /// `P`'s path, crate first, so two modules can share a type name.
-    fn name<P: Procedure>() -> String {
-        let named = P::named();
-        format!("{}::{}", named.module_path, named.name)
-    }
+/// A procedure's path, crate first, so two modules can share a type name.
+fn name(named: &Named) -> String {
+    format!("{}::{}", named.module_path, named.name)
 }
 
 /// A function that replies to a procedure.
@@ -165,6 +165,15 @@ pub struct Router {
 }
 
 impl Router {
+    /// Starts a router for the procedures in `lists`.
+    pub fn builder(lists: impl IntoIterator<Item = Procedures>) -> Builder {
+        let mut builder = Builder { names: BTreeMap::new(), state: () };
+        for named in lists.into_iter().flat_map(|list| list.declarations) {
+            builder.names.entry(name(named())).or_default().declared = true;
+        }
+        builder
+    }
+
     /// Replies to a call.
     pub(crate) fn call(
         &self,
@@ -304,7 +313,7 @@ mod tests {
     use futures_util::{FutureExt, StreamExt, stream};
     use serde_json::value::RawValue;
 
-    use super::{Procedures, State};
+    use super::{Router, State};
     use crate::rpc::tests::{Buy, BuyError, Game, Generator, Hire, Ore, Sell};
 
     #[test]
@@ -319,9 +328,11 @@ mod tests {
         let sell = |State(game): State<Game>, _: Sell| ready(Ok(game.drills));
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
 
-        let procedures = Procedures::new().declare::<Buy>().declare::<Sell>().declare::<Ore>();
-        let procedures = procedures.with_state(Game { drills: 3 }).handle(buy).handle(ore);
-        let router = procedures.handle_with(Game { drills: 9 }, sell).build().unwrap();
+        let shop = crate::procedures!().declare::<Buy>().declare::<Sell>();
+        let mine = crate::procedures!().declare::<Ore>();
+        let builder = Router::builder([shop, mine]);
+        let builder = builder.with_state(Game { drills: 3 }).handle(buy).handle(ore);
+        let router = builder.handle_with(Game { drills: 9 }, sell).build().unwrap();
         let calls = [
             ("taba::rpc::tests::Buy", r#"{"generator":"Drill"}"#),
             ("taba::rpc::tests::Buy", r#"{"generator":"Furnace"}"#),
@@ -371,8 +382,10 @@ mod tests {
         let also_buy = |_: Buy| ready(Ok(0));
         let undeclared = |_: Hire| ready(Ok(0));
 
-        let procedures = Procedures::new().declare::<Buy>().declare::<Sell>();
-        let error = procedures.handle(buy).handle(also_buy).handle(undeclared).build().unwrap_err();
+        // the same procedure from two lists is one declaration
+        let shop = crate::procedures!().declare::<Buy>().declare::<Sell>();
+        let builder = Router::builder([shop, crate::procedures!().declare::<Buy>()]);
+        let error = builder.handle(buy).handle(also_buy).handle(undeclared).build().unwrap_err();
         insta::assert_snapshot!(error, @"
         can't build the router:
         \t2 handlers for `taba::rpc::tests::Buy`

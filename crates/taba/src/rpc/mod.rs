@@ -13,7 +13,7 @@ use serde::{Serialize, Serializer};
 
 pub use self::{
     error::Error,
-    router::{BuildError, Handler, Procedures, Replies, Router, State},
+    router::{BuildError, Builder, Handler, Procedures, Replies, Router, State},
     sessions::{SessionId, Sessions},
     wire::Frame,
 };
@@ -22,6 +22,20 @@ use crate::typescript::Request;
 #[doc(hidden)]
 pub mod __private {
     pub use super::wire::{Batch, Kind, Message, Rejection, SafeInteger};
+}
+
+/// Starts a list of procedures for [`Router::builder`].
+///
+/// ```rust,ignore
+/// pub fn procedures() -> Procedures {
+///     taba::procedures!().declare::<shop::Buy>().declare::<Hauls>()
+/// }
+/// ```
+#[macro_export]
+macro_rules! procedures {
+    () => {
+        $crate::rpc::Procedures::__new()
+    };
 }
 
 /// What TypeScript can call or subscribe to.

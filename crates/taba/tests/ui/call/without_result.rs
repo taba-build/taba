@@ -1,7 +1,7 @@
 //! A call's handler that returns its output without a `Result`.
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Procedures}};
+use taba::{Input, rpc::{Never, Procedure, Router}};
 
 #[derive(Deserialize, Input)]
 struct Buy;
@@ -16,5 +16,5 @@ async fn buy(_: Buy) -> u32 {
 }
 
 fn main() {
-    Procedures::new().handle(buy);
+    Router::builder([taba::procedures!().declare::<Buy>()]).handle(buy);
 }

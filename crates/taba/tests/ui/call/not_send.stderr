@@ -1,8 +1,8 @@
 error: future cannot be sent between threads safely
-  --> tests/ui/call/not_send.rs:23:30
+  --> tests/ui/call/not_send.rs:23:68
    |
-23 |     Procedures::new().handle(buy);
-   |                              ^^^ future returned by `buy` is not `Send`
+23 |     Router::builder([taba::procedures!().declare::<Buy>()]).handle(buy);
+   |                                                                    ^^^ future returned by `buy` is not `Send`
    |
    = help: within `impl Future<Output = Result<u32, Never>>`, the trait `Send` is not implemented for `Rc<u32>`
 note: future is not `Send` as this value is used across an await
@@ -12,12 +12,12 @@ note: future is not `Send` as this value is used across an await
    |         ------ has type `Rc<u32>` which is not `Send`
 18 |     core::future::ready(()).await;
    |                             ^^^^^ await occurs here, with `drills` maybe used later
-note: required by a bound in `Procedures::<S>::handle`
+note: required by a bound in `taba::rpc::Builder::<S>::handle`
   --> src/rpc/router.rs
    |
-   | impl<S> Procedures<S> {
+   | impl<S> Builder<S> {
 ...
    |     pub fn handle<H, Args, P>(self, handler: H) -> Self
 ...
    |         H::Return: Replies<<P::Output as IntoReply>::Reply, P::Error>,
-   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Procedures::<S>::handle`
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `Builder::<S>::handle`
