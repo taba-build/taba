@@ -6,6 +6,12 @@
 //!
 //! 64-bit integers have no impl, because a JavaScript number can't hold one exactly. They're fine
 //! as map keys, which travel as strings.
+//!
+//! A [`RawValue`] fails every read inside an untagged or internally tagged enum, or a flattened
+//! field, though its declaration accepts any JSON. Use [`Value`] there.
+//!
+//! [`RawValue`]: ::serde_json::value::RawValue
+//! [`Value`]: ::serde_json::Value
 
 use alloc::{
     boxed::Box,
@@ -250,6 +256,9 @@ impl<T: Output + ?Sized> Output for Box<T> {
 impl<T: Input> Input for Box<T> {
     const __OPTIONAL: bool = T::__OPTIONAL;
     const __SHAPE: Shape = T::__SHAPE;
+
+    // `T::__TAGGED` would cycle on recursive types
+    const __TAGGED: Shape = T::__SHAPE;
 }
 
 impl<T: Output> Output for Option<T> {
