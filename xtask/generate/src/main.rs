@@ -1,5 +1,7 @@
 //! Taba's generated files, written from the repo root.
 
+mod game;
+
 use std::{
     fs,
     io::{self, Error, Write},
@@ -20,6 +22,8 @@ fn main() -> io::Result<()> {
     let files = [
         ("crates/taba-tauri/src/injected.js", injected),
         ("packages/rpc/src/taba.ts", wire.to_string()),
+        ("xtask/generate/conformance/taba.d.ts", game::declarations().to_string()),
+        ("xtask/generate/conformance/cases.ts", game::cases().to_string()),
     ];
 
     for (path, contents) in &files {

@@ -1134,6 +1134,8 @@ dependencies = [
 name = "generate"
 version = "0.0.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "taba",
  "taba-build",
 ]
@@ -4349,7 +4351,7 @@ name = "taba-build"
 version = "0.0.2"
 dependencies = [
  "insta",
- "serde",
+ "serde_core",
  "serde_json",
  "taba",
  "taba-rolldown",

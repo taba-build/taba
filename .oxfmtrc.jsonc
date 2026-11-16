@@ -5,5 +5,10 @@
       "files": ["**/*.md"],
       "options": { "proseWrap": "always" },
     },
+    {
+      // a rejected case has to stay on the line after its @ts-expect-error
+      "files": ["xtask/generate/conformance/cases.ts"],
+      "options": { "objectWrap": "collapse" },
+    },
   ],
 }

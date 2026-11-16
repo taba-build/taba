@@ -30,6 +30,9 @@ use taba_rolldown::oxc::{
     syntax::identifier::is_identifier_name_patched,
 };
 
+#[cfg(feature = "test")]
+pub(crate) mod cases;
+
 /// The crate who represents `crate`.
 type CrateCrate = &'static str;
 
@@ -154,25 +157,41 @@ fn prelude(allocator: &Allocator) -> ArenaVec<'_, Statement<'_>> {
     Parser::new(allocator, include_str!("prelude.d.ts"), SourceType::d_ts()).parse().program.body
 }
 
-/// The program's source text, written only to hold doc comments.
+/// The program's source text, written only to hold its comments.
 ///
 /// Oxc prints each comment from this text, before the node starting at its `attached_to`.
 #[derive(Default)]
-struct Docs {
+struct Comments {
     source: String,
     comments: Vec<Comment>,
 }
 
-impl Docs {
-    fn span(&mut self, docs: &[&str]) -> Span {
+impl Comments {
+    /// The span of a node led by the doc comment `docs`.
+    fn jsdoc(&mut self, docs: &[&str]) -> Span {
         let text = text(docs);
         let kind = match &text {
             text if text.is_empty() => return SPAN,
             text if text.contains('\n') => CommentKind::MultiLineBlock,
             _ => CommentKind::SingleLineBlock,
         };
+        self.leading(jsdoc(&text), kind, CommentContent::Jsdoc)
+    }
+
+    /// The span of a node led by `// {text}`.
+    #[cfg(feature = "test")]
+    fn line(&mut self, text: &str) -> Span {
+        self.leading(format_args!("// {text}"), CommentKind::Line, CommentContent::None)
+    }
+
+    fn leading(
+        &mut self,
+        comment: impl fmt::Display,
+        kind: CommentKind,
+        content: CommentContent,
+    ) -> Span {
         let start = self.source.len() as u32;
-        self.source.push_str(&jsdoc(&text).to_string());
+        self.source.push_str(&comment.to_string());
         let end = self.source.len() as u32;
         self.comments.push(Comment {
             span: Span::new(start, end),
@@ -180,7 +199,7 @@ impl Docs {
             kind,
             position: CommentPosition::Leading,
             newlines: CommentNewlines::Trailing,
-            content: CommentContent::Jsdoc,
+            content,
         });
         Span::empty(end)
     }
@@ -227,13 +246,13 @@ fn escaped(text: &str) -> impl fmt::Display {
 struct Printer<'a> {
     ast: &'a AstBuilder<'a>,
     crate_: CrateCrate,
-    docs: Docs,
+    comments: Comments,
     prelude: bool,
 }
 
 impl<'a> Printer<'a> {
     fn new(ast: &'a AstBuilder<'a>, crate_: CrateCrate) -> Self {
-        Self { ast, crate_, docs: Docs::default(), prelude: false }
+        Self { ast, crate_, comments: Comments::default(), prelude: false }
     }
 
     /// The finished file, holding `modules`.
@@ -243,8 +262,8 @@ impl<'a> Printer<'a> {
         let prelude = self.prelude.then(|| prelude(allocator));
         let statements = iter::once(self.import_self()).chain(prelude.into_iter().flatten());
         let body = ArenaVec::from_iter_in(statements.chain(modules), ast);
-        let source = allocator.alloc_str(&self.docs.source);
-        let comments = ArenaVec::from_iter_in(self.docs.comments, ast);
+        let source = allocator.alloc_str(&self.comments.source);
+        let comments = ArenaVec::from_iter_in(self.comments.comments, ast);
         Program::new(SPAN, SourceType::d_ts(), source, comments, None, [], body, ast)
     }
 
@@ -296,7 +315,7 @@ impl<'a> Printer<'a> {
     /// `export type Foo<T> = ...;`, with `named`'s docs, parameters and shape.
     fn alias(&mut self, name: &'a str, named: &Named) -> Statement<'a> {
         let ast = self.ast;
-        let span = self.docs.span(named.docs);
+        let span = self.comments.jsdoc(named.docs);
         let shape = Declaring { file: self, named }.ts(&named.shape);
         let parameters = (!named.parameters.is_empty()).then(|| {
             let parameters = named.parameters.iter().map(|&parameter| {
@@ -386,7 +405,7 @@ impl<'a> Declaring<'_, 'a> {
         let ast = self.file.ast;
         let mut members = ArenaVec::new_in(ast);
         for property in object.properties {
-            let span = self.file.docs.span(property.docs);
+            let span = self.file.comments.jsdoc(property.docs);
             let shape = self.ts(&property.shape);
             members.push(TSSignature::new_ts_property_signature(
                 span,

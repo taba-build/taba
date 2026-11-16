@@ -4,6 +4,7 @@
     { "path": "packages/rpc" },
     { "path": "crates/taba-tauri" },
     { "path": "crates/taba-build" },
-    { "path": "xtask" }
+    { "path": "xtask" },
+    { "path": "xtask/generate/conformance" }
   ]
 }

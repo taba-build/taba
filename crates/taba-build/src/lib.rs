@@ -10,3 +10,9 @@ mod typescript;
 pub use self::bundle::{Error, Result, bundle};
 #[cfg(feature = "typescript")]
 pub use self::typescript::Declarations;
+
+#[cfg(feature = "test")]
+#[doc(hidden)]
+pub mod __private {
+    pub use crate::typescript::cases::Cases;
+}
