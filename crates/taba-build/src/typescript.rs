@@ -33,8 +33,11 @@ use taba_rolldown::oxc::{
 /// The crate who represents `crate`.
 type CrateCrate = &'static str;
 
-/// The alias a flattened reference or type parameter goes through.
-const FLATTENED: &str = "$Flattened";
+/// The alias an `Input` object with [flattened](Rest::Flattened) parts goes through.
+const INPUT: &str = "$Input";
+
+/// The alias an `Output` object with [flattened](Rest::Flattened) parts goes through.
+const OUTPUT: &str = "$Output";
 
 /// A TypeScript module declaring Rust types.
 ///
@@ -138,32 +141,15 @@ impl fmt::Display for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let allocator = Allocator::default();
         let ast = AstBuilder::new(&allocator);
-        let docs = Docs::default();
-        let mut printer =
-            Printer { ast: &ast, crate_: self.crate_, docs, parameters: &[], uses_prelude: false };
-        let import = printer.import_self();
+        let mut printer = Printer::new(&ast, self.crate_);
         let types: Vec<_> = self.types.iter().map(|declared| declared.0).collect();
         let modules = types.chunk_by(|first, second| first.module_path == second.module_path);
         let modules: Vec<_> = modules.filter_map(|types| printer.module(types)).collect();
-        let prelude = printer.uses_prelude.then(|| prelude(&allocator));
-        let statements = iter::once(import).chain(prelude.into_iter().flatten()).chain(modules);
-        let body = ArenaVec::from_iter_in(statements, &ast);
-        let source = allocator.alloc_str(&printer.docs.source);
-        let program = Program::new(
-            SPAN,
-            SourceType::d_ts(),
-            source,
-            ArenaVec::from_iter_in(printer.docs.comments, &ast),
-            None,
-            [],
-            body,
-            &ast,
-        );
-        f.write_str(&Codegen::new().build(&program).code)
+        f.write_str(&Codegen::new().build(&printer.program(modules)).code)
     }
 }
 
-/// The aliases declarations use, declared at the top of a file that needs them.
+/// The aliases an object with flattened parts goes through, from `prelude.d.ts`.
 fn prelude(allocator: &Allocator) -> ArenaVec<'_, Statement<'_>> {
     Parser::new(allocator, include_str!("prelude.d.ts"), SourceType::d_ts()).parse().program.body
 }
@@ -237,19 +223,31 @@ fn escaped(text: &str) -> impl fmt::Display {
     })
 }
 
+/// A declarations file as it's built, and what every declaration in it shares.
 struct Printer<'a> {
     ast: &'a AstBuilder<'a>,
     crate_: CrateCrate,
     docs: Docs,
-
-    /// The names each [`Shape::Parameter`] indexes, for the type being declared.
-    parameters: &'static [&'static str],
-
-    /// Whether a declaration uses an alias from [`prelude`], which the file then declares.
-    uses_prelude: bool,
+    prelude: bool,
 }
 
 impl<'a> Printer<'a> {
+    fn new(ast: &'a AstBuilder<'a>, crate_: CrateCrate) -> Self {
+        Self { ast, crate_, docs: Docs::default(), prelude: false }
+    }
+
+    /// The finished file, holding `modules`.
+    fn program(self, modules: Vec<Statement<'a>>) -> Program<'a> {
+        let ast = self.ast;
+        let allocator = ast.allocator();
+        let prelude = self.prelude.then(|| prelude(allocator));
+        let statements = iter::once(self.import_self()).chain(prelude.into_iter().flatten());
+        let body = ArenaVec::from_iter_in(statements.chain(modules), ast);
+        let source = allocator.alloc_str(&self.docs.source);
+        let comments = ArenaVec::from_iter_in(self.docs.comments, ast);
+        Program::new(SPAN, SourceType::d_ts(), source, comments, None, [], body, ast)
+    }
+
     /// `import type * as $ from "./taba.js";`, which no Rust name can shadow.
     fn import_self(&self) -> Statement<'a> {
         let ast = self.ast;
@@ -299,8 +297,7 @@ impl<'a> Printer<'a> {
     fn alias(&mut self, name: &'a str, named: &Named) -> Statement<'a> {
         let ast = self.ast;
         let span = self.docs.span(named.docs);
-        self.parameters = named.parameters;
-        let shape = self.ts(&named.shape);
+        let shape = Declaring { file: self, named }.ts(&named.shape);
         let parameters = (!named.parameters.is_empty()).then(|| {
             let parameters = named.parameters.iter().map(|&parameter| {
                 let name = BindingIdentifier::new(SPAN, parameter, ast);
@@ -335,9 +332,17 @@ impl<'a> Printer<'a> {
         let namespace = Declaration::new_ts_namespace_declaration(SPAN, id, body, kind, false, ast);
         Statement::new_export_declaration(SPAN, namespace, ast)
     }
+}
 
+/// One type's declaration, whose parameters and direction decide how its shapes print.
+struct Declaring<'p, 'a> {
+    file: &'p mut Printer<'a>,
+    named: &'p Named,
+}
+
+impl<'a> Declaring<'_, 'a> {
     fn ts(&mut self, shape: &Shape) -> TSType<'a> {
-        let ast = self.ast;
+        let ast = self.file.ast;
         match shape {
             Shape::Boolean => TSType::new_ts_boolean_keyword(SPAN, ast),
             Shape::Number => TSType::new_ts_number_keyword(SPAN, ast),
@@ -352,15 +357,13 @@ impl<'a> Printer<'a> {
                 let item = self.ts(item);
                 TSType::new_ts_array_type(SPAN, item, ast)
             }
-            Shape::Tuple(items) => {
-                let items = items.iter().map(|item| TSTupleElement::from(self.ts(item)));
-                TSType::new_ts_tuple_type(SPAN, ArenaVec::from_iter_in(items, ast), ast)
-            }
+            Shape::Tuple(items) => self.tuple(items),
             Shape::Record(value) => self.record(value),
             Shape::Object(object) => self.object(object),
             Shape::Union(members) => self.union(members),
             Shape::Parameter(index) => {
-                let name = TSTypeName::new_identifier_reference(SPAN, self.parameters[*index], ast);
+                let parameter = self.named.parameters[*index];
+                let name = TSTypeName::new_identifier_reference(SPAN, parameter, ast);
                 TSType::new_ts_type_reference(SPAN, name, None, ast)
             }
             Shape::Reference(named, arguments) => self.reference(named(), arguments),
@@ -369,7 +372,7 @@ impl<'a> Printer<'a> {
 
     /// `{ [key: string]: ... }`
     fn record(&mut self, value: &Shape) -> TSType<'a> {
-        let ast = self.ast;
+        let ast = self.file.ast;
         let string = TSType::new_ts_string_keyword(SPAN, ast);
         let string = TSTypeAnnotation::boxed(SPAN, string, ast);
         let key = TSIndexSignatureName::new(SPAN, "key", string, ast);
@@ -378,12 +381,12 @@ impl<'a> Printer<'a> {
         TSType::new_ts_type_literal(SPAN, [index], ast)
     }
 
-    /// `{ ... }`, then `& ...` for each shape [flattened](Rest::Flattened) into it.
+    /// `{ ... }`, merged with [flattened](Rest::Flattened) parts through [`INPUT`] or [`OUTPUT`].
     fn object(&mut self, object: &Object) -> TSType<'a> {
-        let ast = self.ast;
+        let ast = self.file.ast;
         let mut members = ArenaVec::new_in(ast);
         for property in object.properties {
-            let span = self.docs.span(property.docs);
+            let span = self.file.docs.span(property.docs);
             let shape = self.ts(&property.shape);
             members.push(TSSignature::new_ts_property_signature(
                 span,
@@ -396,26 +399,29 @@ impl<'a> Printer<'a> {
             ));
         }
         let literal = TSType::new_ts_type_literal(SPAN, members, ast);
-        let Rest::Flattened(flattened) = object.rest else {
+        let Rest::Flattened(parts) = object.rest else {
             return literal;
         };
-        let flattened = flattened.iter().map(|shape| self.flattened(shape));
-        let types = ArenaVec::from_iter_in(iter::once(literal).chain(flattened), ast);
-        TSType::new_ts_intersection_type(SPAN, types, ast)
-    }
-
-    /// The keys a [flattened](Rest::Flattened) `shape` adds.
-    fn flattened(&mut self, shape: &Shape) -> TSType<'a> {
-        let ast = self.ast;
-        self.uses_prelude = true;
-        let name = TSTypeName::new_identifier_reference(SPAN, FLATTENED, ast);
-        let argument = ArenaVec::from_array_in([self.ts(shape)], ast);
-        let arguments = TSTypeParameterInstantiation::boxed(SPAN, argument, ast);
+        self.file.prelude = true;
+        let parts = self.tuple(parts);
+        let merge = match self.named.direction {
+            Direction::Input => INPUT,
+            Direction::Output => OUTPUT,
+        };
+        let name = TSTypeName::new_identifier_reference(SPAN, merge, ast);
+        let arguments = ArenaVec::from_array_in([literal, parts], ast);
+        let arguments = TSTypeParameterInstantiation::boxed(SPAN, arguments, ast);
         TSType::new_ts_type_reference(SPAN, name, Some(arguments), ast)
     }
 
+    fn tuple(&mut self, items: &[Shape]) -> TSType<'a> {
+        let ast = self.file.ast;
+        let items = items.iter().map(|item| TSTupleElement::from(self.ts(item)));
+        TSType::new_ts_tuple_type(SPAN, ArenaVec::from_iter_in(items, ast), ast)
+    }
+
     fn union(&mut self, members: &[Shape]) -> TSType<'a> {
-        let ast = self.ast;
+        let ast = self.file.ast;
         let members = members.iter().map(|member| self.ts(member));
         let mut members = ArenaVec::from_iter_in(members, ast);
         match members.len() {
@@ -426,10 +432,11 @@ impl<'a> Printer<'a> {
     }
 
     /// `$.crate.foo.Bar`, then `.Input` for an input, then its arguments.
-    fn reference(&mut self, named: &Named, arguments: &[Shape]) -> TSType<'a> {
-        let ast = self.ast;
-        let input = (named.direction == Direction::Input).then_some("Input");
-        let path = self.segments(named.module_path).chain(iter::once(named.name)).chain(input);
+    fn reference(&mut self, referenced: &Named, arguments: &[Shape]) -> TSType<'a> {
+        let ast = self.file.ast;
+        let input = (referenced.direction == Direction::Input).then_some("Input");
+        let segments = self.file.segments(referenced.module_path);
+        let path = segments.chain(iter::once(referenced.name)).chain(input);
         let root = TSTypeName::new_identifier_reference(SPAN, "$", ast);
         let name = path.fold(root, |left, segment| {
             let right = IdentifierName::new(SPAN, segment, ast);
@@ -444,10 +451,11 @@ impl<'a> Printer<'a> {
     }
 
     fn key(&self, key: &'a str) -> PropertyKey<'a> {
+        let ast = self.file.ast;
         if is_identifier_name_patched(key) {
-            PropertyKey::new_static_identifier(SPAN, key, self.ast)
+            PropertyKey::new_static_identifier(SPAN, key, ast)
         } else {
-            PropertyKey::new_string_literal(SPAN, key, None, self.ast)
+            PropertyKey::new_string_literal(SPAN, key, None, ast)
         }
     }
 }

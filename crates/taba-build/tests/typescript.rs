@@ -134,8 +134,37 @@ fn every_shape_kind() {
         Declarations::new("typescript").output::<Mine>().output::<Unreachable>().input::<Buy>();
     insta::assert_snapshot!(declarations, @r#"
     import type * as $ from "./taba.js";
-    type $Flattened<T> = T extends null ? {} : T extends string ? $UnitVariant<T> : T;
-    type $UnitVariant<Name extends string> = string extends Name ? never : { [Variant in Name]: null };
+    export type $Output<
+    	Declared,
+    	Parts
+    > = $Expanded<$OutputWithRest<Declared & $AllKnown<Parts>, $AllOutputRest<Parts>>>;
+    export type $Input<
+    	Declared,
+    	Parts
+    > = $Expanded<$InputWithRest<Declared & $AllKnown<Parts>, $AllInputRest<Parts>>>;
+    export type $Expanded<T> = T extends unknown ? { [Key in keyof T]: T[Key] } : never;
+    export type $Flattened<Part> = Part extends null ? {} : Part extends string ? $UnitVariant<Part> : Part;
+    export type $UnitVariant<Name extends string> = string extends Name ? never : Record<Name, null>;
+    export type $AllKnown<Parts> = Parts extends [infer Part, ...infer Tail] ? $Known<$Flattened<Part>> & $AllKnown<Tail> : {};
+    export type $Known<Part> = Part extends unknown ? { [Key in keyof Part as string extends Key ? never : Key]: Part[Key] } : never;
+    export type $OutputWithRest<
+    	Known,
+    	Rest
+    > = [Rest] extends [never] ? Known : Known extends unknown ? { [Key in keyof Known]: Known[Key] | Rest } & {
+    	[key: string]: Rest | Known[keyof Known];
+    } : never;
+    export type $AllOutputRest<Parts> = Parts extends [infer Part, ...infer Tail] ? $OutputRest<$Flattened<Part>> | $AllOutputRest<Tail> : never;
+    export type $OutputRest<Part> = Part extends unknown ? string extends keyof Part ? Part[string] : never : never;
+    export type $InputWithRest<
+    	Known,
+    	Rest
+    > = unknown extends Rest ? Known : Known extends {
+    	[key: string]: Rest;
+    } ? Known & {
+    	[key: string]: Rest;
+    } : Known;
+    export type $AllInputRest<Parts> = Parts extends [infer Part, ...infer Tail] ? $InputRest<$Flattened<Part>> & $AllInputRest<Tail> : unknown;
+    export type $InputRest<Part> = Part extends unknown ? string extends keyof Part ? Part[string] : unknown : never;
     export namespace serde_json.value {
     	export type Value = null | boolean | number | string | $.serde_json.value.Value[] | {
     		[key: string]: $.serde_json.value.Value;
@@ -178,7 +207,7 @@ fn every_shape_kind() {
     	*
     	* Sent once per tick.
     	*/
-    	export type Mine = {
+    	export type Mine = $Output<{
     		/** Ore on hand, by kind. */
     		ore: {
     			[key: string]: number;
@@ -197,22 +226,22 @@ fn every_shape_kind() {
     		incoming: $.crate.Shipment<$.crate.shop.Generator>[];
     		/** The generator that dug last. */
     		last_digger: $.crate.Id;
-    	} & $Flattened<($.crate.Boost | null) | null> & $Flattened<$.crate.Weather>;
+    	}, [($.crate.Boost | null) | null, $.crate.Weather]>;
     	/** Something on its way to the mine. */
-    	export type Shipment<T> = {
+    	export type Shipment<T> = $Output<{
     		/** Ticks until it arrives. */
     		eta: number;
     		/** The shipment after it. */
     		next: $.crate.Shipment<T> | null;
-    	} & $Flattened<T>;
+    	}, [T]>;
     	export namespace Shipment {
     		/** Something on its way to the mine. */
-    		export type Input<T> = {
+    		export type Input<T> = $Input<{
     			/** Ticks until it arrives. */
     			eta: number;
     			/** The shipment after it. */
     			next?: $.crate.Shipment.Input<T> | null;
-    		} & $Flattened<T>;
+    		}, [T]>;
     	}
     	export type Unreachable = never;
     	/** The weather over the mine. */
