@@ -4,7 +4,7 @@ use std::prelude::rust_2024::*;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Input, Never, Procedure, Strand};
+use crate::{Input, Never, Output, Procedure, Strand};
 
 #[derive(Clone)]
 pub(super) struct Game {
@@ -22,7 +22,7 @@ pub(super) enum Generator {
     Furnace,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Output)]
 pub(super) enum BuyError {
     CantAfford { missing: u32 },
 }

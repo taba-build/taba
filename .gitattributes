@@ -3,3 +3,4 @@ crates/taba-tauri/src/injected.js linguist-generated
 packages/rpc/src/taba.ts linguist-generated
 xtask/generate/conformance/taba.d.ts linguist-generated
 xtask/generate/conformance/cases.ts linguist-generated
+xtask/generate/conformance/client/** linguist-generated

@@ -37,7 +37,7 @@ pub mod __private {
 
     #[cfg(feature = "rpc")]
     pub use crate::rpc::__private as rpc;
-    pub use crate::typescript::__private as typescript;
+    pub use crate::{procedure::__private as procedure, typescript::__private as typescript};
 }
 
 /// Include `taba-build` output as the named module.

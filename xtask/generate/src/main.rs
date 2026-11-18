@@ -30,9 +30,28 @@ fn main() -> io::Result<()> {
         let path = Path::new(path);
         write(path, &formatted(path, contents)?)?;
     }
-    let attributes = files.map(|(path, _)| format!("{path} linguist-generated\n")).concat();
+
+    // written as an app writes its client, then formatted like the rest
+    game::client().write().map_err(Error::other)?;
+    format(Path::new(game::CLIENT))?;
+
+    let client = format!("{}/**", game::CLIENT);
+    let paths = files.iter().map(|(path, _)| *path).chain([client.as_str()]);
+    let attributes: String = paths.map(|path| format!("{path} linguist-generated\n")).collect();
     let attributes = format!("# written by `cargo xtask generate`\n{attributes}");
     write(Path::new(".gitattributes"), attributes.as_bytes())
+}
+
+/// Formats the files under `directory` in place.
+fn format(directory: &Path) -> io::Result<()> {
+    let mut oxfmt = oxfmt();
+    oxfmt.arg(directory);
+    let status = oxfmt.status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(Error::other(format!("{oxfmt:?} failed with {status}")))
+    }
 }
 
 /// Writes `contents` to `path` if they changed.
@@ -47,8 +66,8 @@ fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
 
 /// `contents` formatted by oxfmt for `path`.
 fn formatted(path: &Path, contents: &str) -> io::Result<Vec<u8>> {
-    let mut oxfmt = Command::new("pnpm");
-    oxfmt.args(["--silent", "run", "fmt", "--stdin-filepath"]).arg(path);
+    let mut oxfmt = oxfmt();
+    oxfmt.arg("--stdin-filepath").arg(path);
     let mut child = oxfmt.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()?;
     let mut stdin = child.stdin.take().expect("stdin is piped");
 
@@ -66,4 +85,11 @@ fn formatted(path: &Path, contents: &str) -> io::Result<Vec<u8>> {
     } else {
         Err(Error::other(format!("{oxfmt:?} failed with {}", output.status)))
     }
+}
+
+/// The repo's oxfmt, through its `fmt` script.
+fn oxfmt() -> Command {
+    let mut oxfmt = Command::new("pnpm");
+    oxfmt.args(["--silent", "run", "fmt"]);
+    oxfmt
 }

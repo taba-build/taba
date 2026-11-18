@@ -3,7 +3,6 @@
 use alloc::{
     boxed::Box,
     collections::BTreeMap,
-    format,
     string::{String, ToString},
     vec::Vec,
 };
@@ -15,7 +14,7 @@ use serde_json::value::{RawValue, to_raw_value};
 
 use self::sealed::Erased;
 use super::wire::Kind;
-use crate::{IntoReply, Once, Procedure, Procedures, Strand, typescript::Named};
+use crate::{IntoReply, Once, Procedure, Procedures, Strand};
 
 /// A [`Router`] being assembled.
 ///
@@ -66,7 +65,7 @@ impl<S> Builder<S> {
             Err(error) => Err(Kind::invalid(error)),
         };
         let erased = H::Return::erase(parsed);
-        self.names.entry(name(P::named())).or_default().handlers.push(erased);
+        self.names.entry(P::named().path()).or_default().handlers.push(erased);
         self
     }
 
@@ -92,11 +91,6 @@ impl<S> Builder<S> {
         }
         Ok(Router { handlers: paired })
     }
-}
-
-/// A procedure's path, crate first, so two modules can share a type name.
-fn name(named: &Named) -> String {
-    format!("{}::{}", named.module_path, named.name)
 }
 
 /// A function that replies to a procedure.
@@ -149,8 +143,8 @@ impl Router {
     /// Starts a router for the procedures in `lists`.
     pub fn builder(lists: impl IntoIterator<Item = Procedures>) -> Builder {
         let mut builder = Builder { names: BTreeMap::new(), state: () };
-        for named in lists.into_iter().flat_map(|list| list.declarations) {
-            builder.names.entry(name(named())).or_default().declared = true;
+        for declaration in lists.into_iter().flat_map(|list| list.declarations) {
+            builder.names.entry((declaration.named)().path()).or_default().declared = true;
         }
         builder
     }

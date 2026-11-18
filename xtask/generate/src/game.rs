@@ -5,8 +5,8 @@ use std::{collections::BTreeMap, marker::PhantomData};
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use taba::{Input, Output};
-use taba_build::{__private::Cases, Declarations};
+use taba::{Input, Never, Output, Procedure, Procedures, Strand};
+use taba_build::{__private::Cases, Build, Declarations};
 
 /// A machine that makes ore.
 #[derive(Serialize, Deserialize, Output, Input)]
@@ -98,13 +98,31 @@ enum Unreachable {}
 
 mod shop {
     use serde::{Deserialize, Serialize};
-    use taba::{Input, Output};
+    use taba::{Input, Output, Procedure, Strand};
 
     /// A generator for sale.
     #[derive(Serialize, Deserialize, Output, Input)]
     pub(super) struct Generator {
         /// What it costs, in ore.
         pub(super) price: u32,
+    }
+
+    /// Sells a generator back, for some of its price.
+    #[derive(Deserialize, Input)]
+    pub(super) struct Sell(pub(super) Generator);
+
+    impl Procedure for Sell {
+        type Output = u32;
+        type Error = String;
+    }
+
+    /// Each new price, until the shop closes.
+    #[derive(Deserialize, Input)]
+    pub(super) struct Prices;
+
+    impl Procedure for Prices {
+        type Output = Strand<u32>;
+        type Error = String;
     }
 }
 
@@ -126,6 +144,20 @@ enum Buy {
     },
 
     Delivered(Shipment<shop::Generator>),
+}
+
+impl Procedure for Buy {
+    type Output = Cart;
+    type Error = Never;
+}
+
+/// The mine after each tick.
+#[derive(Deserialize, Input)]
+struct Ticks;
+
+impl Procedure for Ticks {
+    type Output = Strand<Mine<'static>>;
+    type Error = Never;
 }
 
 /// A cart of ore, by kind.
@@ -251,6 +283,22 @@ struct Reserve(Option<Boost>);
 /// Ore by kind, whatever names the kind.
 #[derive(Serialize, Output)]
 struct Tally<K>(BTreeMap<K, u32>);
+
+/// The game's procedures.
+fn procedures() -> Procedures {
+    taba::procedures!()
+        .declare::<Buy>()
+        .declare::<Ticks>()
+        .declare::<shop::Sell>()
+        .declare::<shop::Prices>()
+}
+
+pub(crate) fn client() -> Build {
+    Build::new().package(procedures(), CLIENT)
+}
+
+/// Where [`client`] writes, from the repo root.
+pub(crate) const CLIENT: &str = "xtask/generate/conformance/client";
 
 pub(crate) fn declarations() -> Declarations {
     Declarations::new("generate")

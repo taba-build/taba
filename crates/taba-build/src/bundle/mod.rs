@@ -1,6 +1,6 @@
 use std::path::Path;
 
-pub use error::Error;
+pub use error::BundleError;
 use taba_rolldown::{
     rolldown::{Bundler, BundlerOptions, CodeSplittingMode, InputItem, OutputFormat},
     rolldown_common::{AddonOutputOption, Output},
@@ -8,9 +8,6 @@ use taba_rolldown::{
 };
 
 mod error;
-
-/// Alias for a `Result` with the error type `taba_build::Error`.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Bundles `module` and its imports into one script.
 ///
@@ -20,12 +17,12 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// When `module` isn't a UTF-8 path, the async runtime rolldown runs on can't start, or rolldown
 /// fails or can't resolve an import.
-pub fn bundle(module: impl AsRef<Path>) -> Result<String> {
+pub fn bundle(module: impl AsRef<Path>) -> Result<String, BundleError> {
     bundle_path(module.as_ref())
 }
 
-fn bundle_path(module: &Path) -> Result<String> {
-    let import = module.to_str().ok_or_else(|| Error::not_utf8(module))?;
+fn bundle_path(module: &Path) -> Result<String, BundleError> {
+    let import = module.to_str().ok_or_else(|| BundleError::not_utf8(module))?;
     let options = BundlerOptions {
         input: Some(vec![InputItem { name: None, import: import.to_owned() }]),
         format: Some(OutputFormat::Iife),
@@ -35,9 +32,10 @@ fn bundle_path(module: &Path) -> Result<String> {
         intro: Some(AddonOutputOption::String(Some(r#""use strict";"#.to_owned()))),
         ..BundlerOptions::default()
     };
-    let failed = |diagnostics| Error::bundle(module, diagnostics);
+    let failed = |diagnostics| BundleError::bundle(module, diagnostics);
 
-    let runtime = tokio::runtime::Builder::new_current_thread().build().map_err(Error::runtime)?;
+    let runtime =
+        tokio::runtime::Builder::new_current_thread().build().map_err(BundleError::runtime)?;
     let mut bundler = Bundler::new(options).map_err(|errors| failed(errors.into_vec()))?;
     let output =
         runtime.block_on(bundler.generate()).map_err(|errors| failed(errors.into_vec()))?;

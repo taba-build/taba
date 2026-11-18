@@ -7,7 +7,7 @@ use taba_rolldown::rolldown_error::BuildDiagnostic;
 
 /// Failed to bundle a module.
 #[derive(Debug)]
-pub struct Error(Kind);
+pub struct BundleError(Kind);
 
 #[derive(Debug)]
 enum Kind {
@@ -16,7 +16,7 @@ enum Kind {
     Bundle { module: PathBuf, diagnostics: Vec<BuildDiagnostic> },
 }
 
-impl Error {
+impl BundleError {
     pub(crate) fn not_utf8(module: &Path) -> Self {
         Self(Kind::NotUtf8(module.to_path_buf()))
     }
@@ -30,7 +30,7 @@ impl Error {
     }
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for BundleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
             Kind::NotUtf8(module) => {
@@ -45,4 +45,4 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for BundleError {}

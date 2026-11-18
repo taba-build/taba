@@ -1,7 +1,9 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    // the client imports the package by name, which an app resolves from node_modules
+    "paths": { "@taba-build/rpc": ["../../../packages/rpc/src/index.ts"] }
   },
   "include": ["*.ts"]
 }

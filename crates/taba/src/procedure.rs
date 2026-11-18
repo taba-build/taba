@@ -5,9 +5,17 @@ use core::marker::PhantomData;
 
 use serde_core::{Serialize, Serializer};
 
-use crate::typescript::{Named, Request};
+use crate::{
+    Output,
+    typescript::{Named, Request, Shape, crate_of},
+};
 
-/// Starts a [`Procedures`] list.
+#[doc(hidden)]
+pub mod __private {
+    pub use super::{Declaration, ReplyShape};
+}
+
+/// Starts a [`Procedures`] list in the calling crate.
 ///
 /// ```rust,ignore
 /// pub fn procedures() -> Procedures {
@@ -17,7 +25,7 @@ use crate::typescript::{Named, Request};
 #[macro_export]
 macro_rules! procedures {
     () => {
-        $crate::Procedures::__new()
+        $crate::Procedures::__new(::core::module_path!())
     };
 }
 
@@ -73,22 +81,77 @@ impl<T> IntoReply for Strand<T> {
     type Reply = Strand<T>;
 }
 
+/// A [`Reply`](IntoReply::Reply) TypeScript can see.
+pub trait Reply {
+    const SHAPE: ReplyShape;
+}
+
+impl<T: Output> Reply for Once<T> {
+    const SHAPE: ReplyShape = ReplyShape::Once(T::__SHAPE);
+}
+
+impl<T: Output> Reply for Strand<T> {
+    const SHAPE: ReplyShape = ReplyShape::Strand(T::__SHAPE);
+}
+
+/// A reply, as TypeScript sees it.
+#[derive(Debug)]
+pub enum ReplyShape {
+    /// A call's value.
+    Once(Shape),
+
+    /// Each of a subscription's values.
+    Strand(Shape),
+}
+
 /// A list of procedures, started with [`procedures!`](crate::procedures).
 #[derive(Debug)]
 pub struct Procedures {
-    pub(crate) declarations: Vec<fn() -> &'static Named>,
+    crate_: &'static str,
+    pub(crate) declarations: Vec<Declaration>,
+}
+
+/// One procedure in a [`Procedures`] list, as TypeScript sees it.
+#[derive(Debug)]
+pub struct Declaration {
+    /// Its request type's `Named`.
+    pub named: fn() -> &'static Named,
+
+    /// What it replies with.
+    pub reply: &'static ReplyShape,
+
+    /// What it fails with, `never` if it can't.
+    pub error: &'static Shape,
 }
 
 impl Procedures {
+    /// A list started in the module at `module_path`.
     #[doc(hidden)]
-    pub fn __new() -> Self {
-        Self { declarations: Vec::new() }
+    pub fn __new(module_path: &'static str) -> Self {
+        Self { crate_: crate_of(module_path), declarations: Vec::new() }
     }
 
     /// Adds `P`.
-    pub fn declare<P: Procedure>(mut self) -> Self {
-        self.declarations.push(P::named);
+    pub fn declare<P: Procedure>(mut self) -> Self
+    where
+        P::Output: IntoReply<Reply: Reply>,
+        P::Error: Output,
+    {
+        let reply = const { &<<P::Output as IntoReply>::Reply as Reply>::SHAPE };
+        let error = const { &<P::Error as Output>::__SHAPE };
+        self.declarations.push(Declaration { named: P::named, reply, error });
         self
+    }
+
+    /// The crate it was started in.
+    #[doc(hidden)]
+    pub fn __crate(&self) -> &'static str {
+        self.crate_
+    }
+
+    #[doc(hidden)]
+    pub fn __declarations(&self) -> &[Declaration] {
+        &self.declarations
     }
 }
 
@@ -108,4 +171,8 @@ impl Serialize for Never {
     fn serialize<S: Serializer>(&self, _: S) -> Result<S::Ok, S::Error> {
         match *self {}
     }
+}
+
+impl Output for Never {
+    const __SHAPE: Shape = Shape::Never;
 }

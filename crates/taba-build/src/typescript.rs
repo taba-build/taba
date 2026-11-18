@@ -32,6 +32,7 @@ use taba_rolldown::oxc::{
 
 #[cfg(feature = "test")]
 pub(crate) mod cases;
+pub(crate) mod client;
 
 /// The crate who represents `crate`.
 type CrateCrate = &'static str;
@@ -45,6 +46,9 @@ const OUTPUT: &str = "$Output";
 /// A TypeScript module declaring Rust types.
 ///
 /// `Foo` is what `serde_json` writes for `Foo`, and `Foo.Input` is what it reads as `Foo`.
+///
+/// Other crates are top-level namespaces, so one named for a TypeScript reserved word, like
+/// `default`, can't be declared.
 #[derive(Debug)]
 pub struct Declarations {
     crate_: CrateCrate,
@@ -138,6 +142,13 @@ impl Declarations {
             self.add(shape);
         }
     }
+
+    /// `export namespace crate.foo { ... }` for each module's types, in `printer`'s file.
+    fn modules<'a>(&self, printer: &mut Printer<'a>) -> Vec<Statement<'a>> {
+        let types: Vec<_> = self.types.iter().map(|declared| declared.0).collect();
+        let modules = types.chunk_by(|first, second| first.module_path == second.module_path);
+        modules.filter_map(|types| printer.module(types)).collect()
+    }
 }
 
 impl fmt::Display for Declarations {
@@ -145,10 +156,9 @@ impl fmt::Display for Declarations {
         let allocator = Allocator::default();
         let ast = AstBuilder::new(&allocator);
         let mut printer = Printer::new(&ast, self.crate_);
-        let types: Vec<_> = self.types.iter().map(|declared| declared.0).collect();
-        let modules = types.chunk_by(|first, second| first.module_path == second.module_path);
-        let modules: Vec<_> = modules.filter_map(|types| printer.module(types)).collect();
-        f.write_str(&Codegen::new().build(&printer.program(modules)).code)
+        let modules = self.modules(&mut printer);
+        let import = printer.import_self();
+        f.write_str(&Codegen::new().build(&printer.program([import], modules)).code)
     }
 }
 
@@ -179,9 +189,21 @@ impl Comments {
     }
 
     /// The span of a node led by `// {text}`.
-    #[cfg(feature = "test")]
     fn line(&mut self, text: &str) -> Span {
         self.leading(format_args!("// {text}"), CommentKind::Line, CommentContent::None)
+    }
+
+    /// A program of `body`, with these comments.
+    fn program<'a>(
+        self,
+        ast: &AstBuilder<'a>,
+        source_type: SourceType,
+        body: impl IntoIterator<Item = Statement<'a>>,
+    ) -> Program<'a> {
+        let source = ast.allocator().alloc_str(&self.source);
+        let comments = ArenaVec::from_iter_in(self.comments, ast);
+        let body = ArenaVec::from_iter_in(body, ast);
+        Program::new(SPAN, source_type, source, comments, None, [], body, ast)
     }
 
     fn leading(
@@ -255,28 +277,32 @@ impl<'a> Printer<'a> {
         Self { ast, crate_, comments: Comments::default(), prelude: false }
     }
 
-    /// The finished file, holding `modules`.
-    fn program(self, modules: Vec<Statement<'a>>) -> Program<'a> {
-        let ast = self.ast;
-        let allocator = ast.allocator();
-        let prelude = self.prelude.then(|| prelude(allocator));
-        let statements = iter::once(self.import_self()).chain(prelude.into_iter().flatten());
-        let body = ArenaVec::from_iter_in(statements.chain(modules), ast);
-        let source = allocator.alloc_str(&self.comments.source);
-        let comments = ArenaVec::from_iter_in(self.comments.comments, ast);
-        Program::new(SPAN, SourceType::d_ts(), source, comments, None, [], body, ast)
+    /// The finished file, holding `imports`, any prelude, then `body`.
+    fn program(
+        self,
+        imports: impl IntoIterator<Item = Statement<'a>>,
+        body: Vec<Statement<'a>>,
+    ) -> Program<'a> {
+        let prelude = self.prelude.then(|| prelude(self.ast.allocator()));
+        let statements = imports.into_iter().chain(prelude.into_iter().flatten()).chain(body);
+        self.comments.program(self.ast, SourceType::d_ts(), statements)
     }
 
-    /// `import type * as $ from "./taba.js";`, which no Rust name can shadow.
+    /// `import type * as $ from "./taba.js";`, the file importing itself.
     fn import_self(&self) -> Statement<'a> {
-        let ast = self.ast;
         let stem = Declarations::FILE.trim_end_matches(".d.ts");
-        let specifier = ast.allocator().alloc_str(&format!("./{stem}.js"));
+        self.import_types(SPAN, &format!("./{stem}.js"))
+    }
+
+    /// `import type * as $ from "{specifier}";`, which no Rust name can shadow.
+    fn import_types(&self, span: Span, specifier: &str) -> Statement<'a> {
+        let ast = self.ast;
+        let specifier = ast.allocator().alloc_str(specifier);
         let local = BindingIdentifier::new(SPAN, "$", ast);
         let namespace =
             ImportDeclarationSpecifier::new_import_namespace_specifier(SPAN, local, ast);
         Statement::new_import_declaration(
-            SPAN,
+            span,
             Some(ArenaVec::from_array_in([namespace], ast)),
             StringLiteral::new(SPAN, specifier, None, ast),
             None,

@@ -1,3 +1,38 @@
+error[E0277]: the trait bound `Nugget: taba::Output` is not satisfied
+  --> tests/ui/strand/item_not_serialize.rs:22:52
+   |
+22 |     Router::builder([taba::procedures!().declare::<Ore>()]).handle(ore);
+   |                                                    ^^^ unsatisfied trait bound
+   |
+help: the trait `taba::Output` is not implemented for `Nugget`
+  --> tests/ui/strand/item_not_serialize.rs:10:1
+   |
+10 | struct Nugget;
+   | ^^^^^^^^^^^^^
+   = note: derive `Output` alongside `Serialize`
+   = note: a type from another crate takes `#[taba(with = "...")]` on its field
+   = note: a 64-bit integer has no exact JavaScript number
+   = help: the following other types implement trait `taba::Output`:
+             &T
+             ()
+             (P,)
+             (O, P)
+             (N, O, P)
+             (M, N, O, P)
+             (L, M, N, O, P)
+             (K, L, M, N, O, P)
+           and $N others
+   = note: required for `Strand<Nugget>` to implement `taba::procedure::Reply`
+note: required by a bound in `Procedures::declare`
+  --> src/procedure.rs
+   |
+   | impl Procedures {
+...
+   |     pub fn declare<P: Procedure>(mut self) -> Self
+   |     where
+   |         P::Output: IntoReply<Reply: Reply>,
+   |                                     ^^^^^ required by this bound in `Procedures::declare`
+
 error[E0277]: the trait bound `Nugget: serde::Serialize` is not satisfied
   --> tests/ui/strand/item_not_serialize.rs:22:68
    |

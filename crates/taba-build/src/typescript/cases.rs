@@ -74,7 +74,8 @@ impl fmt::Display for Cases {
         let mut printer = Printer::new(&ast, self.crate_);
         let cases = self.cases.iter().zip(1..);
         let cases = cases.map(|(case, number)| case.statement(&mut printer, number)).collect();
-        f.write_str(&Codegen::new().build(&printer.program(cases)).code)
+        let import = printer.import_self();
+        f.write_str(&Codegen::new().build(&printer.program([import], cases)).code)
     }
 }
 

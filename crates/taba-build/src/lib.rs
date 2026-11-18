@@ -7,9 +7,12 @@ mod bundle;
 mod typescript;
 
 #[cfg(feature = "bundle")]
-pub use self::bundle::{Error, Result, bundle};
+pub use self::bundle::{BundleError, bundle};
 #[cfg(feature = "typescript")]
-pub use self::typescript::Declarations;
+pub use self::typescript::{
+    Declarations,
+    client::{Build, WriteError},
+};
 
 #[cfg(feature = "test")]
 #[doc(hidden)]

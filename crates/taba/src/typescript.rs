@@ -16,6 +16,7 @@
 use alloc::{
     boxed::Box,
     collections::{BTreeMap, BTreeSet},
+    format,
     string::String,
     vec::Vec,
 };
@@ -144,6 +145,23 @@ pub struct Named {
 
     /// Its shape, with a [`Shape::Parameter`] where each type parameter goes.
     pub shape: Shape,
+}
+
+impl Named {
+    /// Its path, crate first, which TypeScript calls a procedure by.
+    pub fn path(&self) -> String {
+        format!("{}::{}", self.module_path, self.name)
+    }
+
+    /// The crate it's defined in.
+    pub fn crate_(&self) -> &'static str {
+        crate_of(self.module_path)
+    }
+}
+
+/// The crate a [`module_path!`] starts with.
+pub(crate) fn crate_of(module_path: &'static str) -> &'static str {
+    module_path.split_once("::").map_or(module_path, |(crate_, _)| crate_)
 }
 
 /// Which derive built a [`Named`].
