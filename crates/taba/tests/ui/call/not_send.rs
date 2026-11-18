@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Router}};
+use taba::{Input, Never, Procedure, rpc::Router};
 
 #[derive(Deserialize, Input)]
 struct Buy;

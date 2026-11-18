@@ -1,7 +1,7 @@
 //! A strand's handler that returns a future.
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Router, Strand}};
+use taba::{Input, Never, Procedure, Strand, rpc::Router};
 
 #[derive(Deserialize, Input)]
 struct Ore;

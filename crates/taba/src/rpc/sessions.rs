@@ -269,9 +269,12 @@ mod tests {
     };
 
     use super::{SessionId, Sessions};
-    use crate::rpc::{
-        Error, Never, Router,
-        tests::{Buy, Ore},
+    use crate::{
+        Never,
+        rpc::{
+            Error, Router,
+            tests::{Buy, Ore},
+        },
     };
 
     /// A test backend over [`Sessions`], on a runtime the test drives.

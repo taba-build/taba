@@ -1,7 +1,7 @@
 //! A handler whose request comes before its state.
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Router, State}};
+use taba::{Input, Never, Procedure, rpc::{Router, State}};
 
 #[derive(Clone)]
 struct Game;

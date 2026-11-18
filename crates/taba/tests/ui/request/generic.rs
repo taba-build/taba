@@ -1,7 +1,7 @@
 //! One instantiation of a generic type as a procedure.
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure}};
+use taba::{Input, Never, Procedure};
 
 #[derive(Deserialize, Input)]
 struct Find<T> {

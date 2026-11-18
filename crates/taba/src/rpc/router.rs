@@ -14,27 +14,8 @@ use serde::{Serialize, de::DeserializeOwned};
 use serde_json::value::{RawValue, to_raw_value};
 
 use self::sealed::Erased;
-use super::{IntoReply, Once, Procedure, Strand, wire::Kind};
-use crate::typescript::Named;
-
-/// A list of procedures, started with [`procedures!`](crate::procedures).
-#[derive(Debug)]
-pub struct Procedures {
-    declarations: Vec<fn() -> &'static Named>,
-}
-
-impl Procedures {
-    #[doc(hidden)]
-    pub fn __new() -> Self {
-        Self { declarations: Vec::new() }
-    }
-
-    /// Adds `P`.
-    pub fn declare<P: Procedure>(mut self) -> Self {
-        self.declarations.push(P::named);
-        self
-    }
-}
+use super::wire::Kind;
+use crate::{IntoReply, Once, Procedure, Procedures, Strand, typescript::Named};
 
 /// A [`Router`] being assembled.
 ///

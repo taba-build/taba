@@ -1,7 +1,7 @@
 //! A call's handler that returns its output without a `Result`.
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Router}};
+use taba::{Input, Never, Procedure, rpc::Router};
 
 #[derive(Deserialize, Input)]
 struct Buy;

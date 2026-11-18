@@ -8,6 +8,7 @@ extern crate self as taba; // our own types also use derives, which call ::taba
 extern crate std;
 
 mod error;
+mod procedure;
 #[cfg(feature = "rpc")]
 pub mod rpc;
 mod typescript;
@@ -21,6 +22,7 @@ pub use taba_derive::{Input, Output};
 
 pub use crate::{
     error::Error,
+    procedure::{IntoReply, Never, Once, Procedure, Procedures, Strand},
     typescript::{Input, Key, Output},
 };
 

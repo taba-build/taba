@@ -1,7 +1,7 @@
 //! A handler that reads a state other than the one it's given.
 
 use serde::Deserialize;
-use taba::{Input, rpc::{Never, Procedure, Router, State}};
+use taba::{Input, Never, Procedure, rpc::{Router, State}};
 
 #[derive(Clone)]
 struct Game;

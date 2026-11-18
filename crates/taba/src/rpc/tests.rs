@@ -4,8 +4,7 @@ use std::prelude::rust_2024::*;
 
 use serde::{Deserialize, Serialize};
 
-use super::{Never, Procedure, Strand};
-use crate::Input;
+use crate::{Input, Never, Procedure, Strand};
 
 #[derive(Clone)]
 pub(super) struct Game {
