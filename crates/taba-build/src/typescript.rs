@@ -40,8 +40,14 @@ type CrateCrate = &'static str;
 /// The alias an `Input` object with [parts](Rest::Parts) goes through.
 const INPUT: &str = "$Input";
 
+/// The member of an input's namespace that declares it, like `Foo.Input`.
+const INPUT_MEMBER: &str = "Input";
+
 /// The alias an `Output` object with [parts](Rest::Parts) goes through.
 const OUTPUT: &str = "$Output";
+
+/// The namespace a file imports the declared types as, like `$.crate.Foo`.
+const TYPES: &str = "$";
 
 /// A TypeScript module declaring Rust types.
 ///
@@ -298,7 +304,7 @@ impl<'a> Printer<'a> {
     fn import_types(&self, span: Span, specifier: &str) -> Statement<'a> {
         let ast = self.ast;
         let specifier = ast.allocator().alloc_str(specifier);
-        let local = BindingIdentifier::new(SPAN, "$", ast);
+        let local = BindingIdentifier::new(SPAN, TYPES, ast);
         let namespace =
             ImportDeclarationSpecifier::new_import_namespace_specifier(SPAN, local, ast);
         Statement::new_import_declaration(
@@ -334,7 +340,7 @@ impl<'a> Printer<'a> {
 
     /// `export namespace Foo { export type Input = ...; }`
     fn input(&mut self, named: &Named) -> Statement<'a> {
-        let input = self.alias("Input", named);
+        let input = self.alias(INPUT_MEMBER, named);
         self.namespace(named.name, &[], ArenaVec::from_array_in([input], self.ast))
     }
 
@@ -484,10 +490,10 @@ impl<'a> Declaring<'_, 'a> {
     /// `$.crate.foo.Bar`, then `.Input` for an input, then its arguments.
     fn reference(&mut self, referenced: &Named, arguments: &[Shape]) -> TSType<'a> {
         let ast = self.file.ast;
-        let input = (referenced.direction == Direction::Input).then_some("Input");
+        let input = (referenced.direction == Direction::Input).then_some(INPUT_MEMBER);
         let segments = self.file.segments(referenced.module_path);
         let path = segments.chain(iter::once(referenced.name)).chain(input);
-        let root = TSTypeName::new_identifier_reference(SPAN, "$", ast);
+        let root = TSTypeName::new_identifier_reference(SPAN, TYPES, ast);
         let name = path.fold(root, |left, segment| {
             let right = IdentifierName::new(SPAN, segment, ast);
             TSTypeName::new_qualified_name(SPAN, left, right, ast)
