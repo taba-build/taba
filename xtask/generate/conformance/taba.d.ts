@@ -1,39 +1,35 @@
 import type * as $ from "./taba.js";
-export type $Output<Declared, Parts> = $Expanded<
+type $OutputWithParts<Declared, Parts> = $Expanded<
   $OutputWithRest<Declared & $AllKnown<Parts>, $AllOutputRest<Parts>>
 >;
-export type $Input<Declared, Parts> = $Expanded<
+type $InputWithParts<Declared, Parts> = $Expanded<
   $InputWithRest<Declared & $AllKnown<Parts>, $AllInputRest<Parts>>
 >;
-export type $Expanded<T> = T extends unknown ? { [Key in keyof T]: T[Key] } : never;
-export type $Flattened<Part> = Part extends null
-  ? {}
-  : Part extends string
-    ? $UnitVariant<Part>
-    : Part;
-export type $UnitVariant<Name extends string> = string extends Name ? never : Record<Name, null>;
-export type $AllKnown<Parts> = Parts extends [infer Part, ...infer Tail]
+type $Expanded<T> = T extends unknown ? { [Key in keyof T]: T[Key] } : never;
+type $Flattened<Part> = Part extends null ? {} : Part extends string ? $UnitVariant<Part> : Part;
+type $UnitVariant<Name extends string> = string extends Name ? never : Record<Name, null>;
+type $AllKnown<Parts> = Parts extends [infer Part, ...infer Tail]
   ? $Known<$Flattened<Part>> & $AllKnown<Tail>
   : {};
-export type $Known<Part> = Part extends unknown
+type $Known<Part> = Part extends unknown
   ? { [Key in keyof Part as string extends Key ? never : Key]: Part[Key] }
   : never;
-export type $OutputWithRest<Known, Rest> = [Rest] extends [never]
+type $OutputWithRest<Known, Rest> = [Rest] extends [never]
   ? Known
   : Known extends unknown
     ? { [Key in keyof Known]: Known[Key] | Rest } & {
         [key: string]: Rest | Known[keyof Known];
       }
     : never;
-export type $AllOutputRest<Parts> = Parts extends [infer Part, ...infer Tail]
+type $AllOutputRest<Parts> = Parts extends [infer Part, ...infer Tail]
   ? $OutputRest<$Flattened<Part>> | $AllOutputRest<Tail>
   : never;
-export type $OutputRest<Part> = Part extends unknown
+type $OutputRest<Part> = Part extends unknown
   ? string extends keyof Part
     ? Part[string]
     : never
   : never;
-export type $InputWithRest<Known, Rest> = unknown extends Rest
+type $InputWithRest<Known, Rest> = unknown extends Rest
   ? Known
   : Known extends {
         [key: string]: Rest;
@@ -42,15 +38,15 @@ export type $InputWithRest<Known, Rest> = unknown extends Rest
         [key: string]: Rest;
       }
     : Known;
-export type $AllInputRest<Parts> = Parts extends [infer Part, ...infer Tail]
+type $AllInputRest<Parts> = Parts extends [infer Part, ...infer Tail]
   ? $InputRest<$Flattened<Part>> & $AllInputRest<Tail>
   : unknown;
-export type $InputRest<Part> = Part extends unknown
+type $InputRest<Part> = Part extends unknown
   ? string extends keyof Part
     ? Part[string]
     : unknown
   : never;
-export namespace crate.game {
+declare namespace crate.game {
   /** A boost the mine is under. */
   export type Boost = {
     /** How many times faster it digs. */
@@ -83,7 +79,7 @@ export namespace crate.game {
     export type Input = null;
   }
   /** A cart of ore, by kind. */
-  export type Cart = $Output<
+  export type Cart = $OutputWithParts<
     {
       /** What pulls it. */
       pulled_by: string;
@@ -96,7 +92,7 @@ export namespace crate.game {
   >;
   export namespace Cart {
     /** A cart of ore, by kind. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {
         /** What pulls it. */
         pulled_by: string;
@@ -109,7 +105,7 @@ export namespace crate.game {
     >;
   }
   /** A claim on a vein. */
-  export type Claim = $Output<
+  export type Claim = $OutputWithParts<
     {
       owner: string;
     },
@@ -124,7 +120,7 @@ export namespace crate.game {
   >;
   export namespace Claim {
     /** A claim on a vein. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {
         owner: string;
       },
@@ -140,13 +136,13 @@ export namespace crate.game {
   }
   /** Something that happened at the mine. */
   export type Event =
-    | $Output<
+    | $OutputWithParts<
         {
           kind: "Bought";
         },
         [$.crate.game.shop.Generator]
       >
-    | $Output<
+    | $OutputWithParts<
         {
           kind: "Sold";
         },
@@ -156,13 +152,13 @@ export namespace crate.game {
           },
         ]
       >
-    | $Output<
+    | $OutputWithParts<
         {
           kind: "Calmed";
         },
         [$.crate.game.Calm]
       >
-    | $Output<
+    | $OutputWithParts<
         {
           kind: "Changed";
         },
@@ -171,13 +167,13 @@ export namespace crate.game {
   export namespace Event {
     /** Something that happened at the mine. */
     export type Input =
-      | $Input<
+      | $InputWithParts<
           {
             kind: "Bought";
           },
           [$.crate.game.shop.Generator.Input]
         >
-      | $Input<
+      | $InputWithParts<
           {
             kind: "Sold";
           },
@@ -187,31 +183,31 @@ export namespace crate.game {
             },
           ]
         >
-      | $Input<
+      | $InputWithParts<
           {
             kind: "Calmed";
           },
           [$.crate.game.Calm.Input]
         >
-      | $Input<
+      | $InputWithParts<
           {
             kind: "Changed";
           },
           [$.crate.game.Weather.Input]
         >
-      | $Input<
+      | $InputWithParts<
           {
             kind: "Boosted";
           },
           [$.crate.game.Boost.Input]
         >
-      | $Input<
+      | $InputWithParts<
           {
             kind: "Faded";
           },
           [$.crate.game.Boost.Input]
         >
-      | $Input<
+      | $InputWithParts<
           {
             kind: "Stored";
           },
@@ -219,7 +215,7 @@ export namespace crate.game {
         >;
   }
   /** The next tick's forecast. */
-  export type Forecast = $Output<
+  export type Forecast = $OutputWithParts<
     {
       tick: number;
     },
@@ -227,7 +223,7 @@ export namespace crate.game {
   >;
   export namespace Forecast {
     /** The next tick's forecast. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {
         tick: number;
       },
@@ -241,7 +237,7 @@ export namespace crate.game {
     export type Input = "drill" | "furnace";
   }
   /** A hold, and its ore by kind once it has some. */
-  export type Hold = $Output<
+  export type Hold = $OutputWithParts<
     {
       owner: string;
     },
@@ -253,7 +249,7 @@ export namespace crate.game {
   >;
   export namespace Hold {
     /** A hold, and its ore by kind once it has some. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {
         owner: string;
       },
@@ -274,7 +270,7 @@ export namespace crate.game {
    *
    * Sent once per tick.
    */
-  export type Mine = $Output<
+  export type Mine = $OutputWithParts<
     {
       /** Ore on hand, by kind. */
       ore: {
@@ -298,7 +294,7 @@ export namespace crate.game {
     [$.crate.game.Boost | null, $.crate.game.Weather]
   >;
   /** The surveyor's notes, by vein. */
-  export type Notebook = $Output<
+  export type Notebook = $OutputWithParts<
     {
       author: string;
     },
@@ -310,7 +306,7 @@ export namespace crate.game {
   >;
   export namespace Notebook {
     /** The surveyor's notes, by vein. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {
         author: string;
       },
@@ -322,7 +318,7 @@ export namespace crate.game {
     >;
   }
   /** A parcel, whatever it holds. */
-  export type Parcel<T> = $Output<
+  export type Parcel<T> = $OutputWithParts<
     {
       weight: number;
     },
@@ -330,7 +326,7 @@ export namespace crate.game {
   >;
   export namespace Parcel {
     /** A parcel, whatever it holds. */
-    export type Input<T> = $Input<
+    export type Input<T> = $InputWithParts<
       {
         weight: number;
       },
@@ -338,7 +334,7 @@ export namespace crate.game {
     >;
   }
   /** Something on its way to the mine. */
-  export type Shipment<T> = $Output<
+  export type Shipment<T> = $OutputWithParts<
     {
       /** Ticks until it arrives. */
       eta: number;
@@ -349,7 +345,7 @@ export namespace crate.game {
   >;
   export namespace Shipment {
     /** Something on its way to the mine. */
-    export type Input<T> = $Input<
+    export type Input<T> = $InputWithParts<
       {
         /** Ticks until it arrives. */
         eta: number;
@@ -360,7 +356,7 @@ export namespace crate.game {
     >;
   }
   /** Ore piled up under a boost, by kind. */
-  export type Stockpile = $Output<
+  export type Stockpile = $OutputWithParts<
     {},
     [
       $.crate.game.Boost,
@@ -371,7 +367,7 @@ export namespace crate.game {
   >;
   export namespace Stockpile {
     /** Ore piled up under a boost, by kind. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {},
       [
         $.crate.game.Boost.Input,
@@ -386,7 +382,7 @@ export namespace crate.game {
     [key: string]: number;
   };
   /** A train, and the wagon it pulls. */
-  export type Train = $Output<
+  export type Train = $OutputWithParts<
     {
       engine: string;
     },
@@ -394,7 +390,7 @@ export namespace crate.game {
   >;
   export namespace Train {
     /** A train, and the wagon it pulls. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {
         engine: string;
       },
@@ -403,7 +399,7 @@ export namespace crate.game {
   }
   export type Unreachable = never;
   /** A wagon of ore, by kind. */
-  export type Wagon = $Output<
+  export type Wagon = $OutputWithParts<
     {
       load: number;
     },
@@ -415,7 +411,7 @@ export namespace crate.game {
   >;
   export namespace Wagon {
     /** A wagon of ore, by kind. */
-    export type Input = $Input<
+    export type Input = $InputWithParts<
       {
         load: number;
       },
@@ -445,7 +441,7 @@ export namespace crate.game {
         };
   }
 }
-export namespace crate.game.shop {
+declare namespace crate.game.shop {
   /** A generator for sale. */
   export type Generator = {
     /** What it costs, in ore. */
@@ -459,7 +455,7 @@ export namespace crate.game.shop {
     };
   }
 }
-export namespace serde_json.value {
+declare namespace serde_json.value {
   export type Value =
     | null
     | boolean
@@ -481,3 +477,4 @@ export namespace serde_json.value {
         };
   }
 }
+export type { crate, serde_json };

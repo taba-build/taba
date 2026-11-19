@@ -1,4 +1,6 @@
 //! TypeScript declarations for Rust types.
+//!
+//! Every helper and import taba adds starts with `$`, which no Rust name can hold.
 
 use std::{
     cmp::Ordering,
@@ -17,14 +19,16 @@ use taba_rolldown::oxc::{
     ast::{
         Comment, CommentContent, CommentKind, CommentPosition,
         ast::{
-            BindingIdentifier, CommentNewlines, Declaration, IdentifierName,
-            ImportDeclarationSpecifier, ImportOrExportKind, Program, PropertyKey, Statement,
-            StringLiteral, TSIndexSignatureName, TSLiteral, TSNamespaceDeclarationBody,
-            TSNamespaceDeclarationKind, TSSignature, TSTupleElement, TSType, TSTypeAnnotation,
-            TSTypeName, TSTypeParameter, TSTypeParameterDeclaration, TSTypeParameterInstantiation,
+            BindingIdentifier, CommentNewlines, Declaration, ExportSpecifier, IdentifierName,
+            IdentifierReference, ImportDeclarationSpecifier, ImportOrExportKind, ModuleExportName,
+            Program, PropertyKey, Statement, StringLiteral, TSIndexSignatureName, TSLiteral,
+            TSNamespaceDeclarationBody, TSNamespaceDeclarationKind, TSSignature, TSTupleElement,
+            TSType, TSTypeAnnotation, TSTypeName, TSTypeParameter, TSTypeParameterDeclaration,
+            TSTypeParameterInstantiation,
         },
         builder::AstBuilder,
     },
+    ast_visit::Visit,
     codegen::Codegen,
     parser::Parser,
     span::{SPAN, SourceType, Span},
@@ -41,14 +45,14 @@ type CrateCrate = &'static str;
 /// Each declaration in a file, by path like `crate.shop.Buy.Input`, and where its type is named.
 type Origins = BTreeMap<Vec<String>, Option<&'static Location<'static>>>;
 
-/// The alias an `Input` object with [parts](Rest::Parts) goes through.
-const INPUT: &str = "$Input";
-
 /// The member of an input's namespace that declares it, like `Foo.Input`.
-const INPUT_MEMBER: &str = "Input";
+const INPUT: &str = "Input";
 
-/// The alias an `Output` object with [parts](Rest::Parts) goes through.
-const OUTPUT: &str = "$Output";
+/// The prelude alias for an input object with [parts](Rest::Parts).
+const INPUT_WITH_PARTS: &str = "$InputWithParts";
+
+/// The prelude alias for an output object with [parts](Rest::Parts).
+const OUTPUT_WITH_PARTS: &str = "$OutputWithParts";
 
 /// The namespace a file imports the declared types as, like `$.crate.Foo`.
 const TYPES: &str = "$";
@@ -153,7 +157,7 @@ impl Declarations {
         }
     }
 
-    /// `export namespace crate.foo { ... }` for each module's types, in `printer`'s file.
+    /// `declare namespace crate.foo { ... }` for each module's types, in `printer`'s file.
     fn modules<'a>(&self, printer: &mut Printer<'a>) -> Vec<Statement<'a>> {
         let types: Vec<_> = self.types.iter().map(|declared| declared.0).collect();
         let modules = types.chunk_by(|first, second| first.module_path == second.module_path);
@@ -172,9 +176,65 @@ impl fmt::Display for Declarations {
     }
 }
 
-/// The aliases an object with [parts](Rest::Parts) goes through, from `prelude.d.ts`.
-fn prelude(allocator: &Allocator) -> ArenaVec<'_, Statement<'_>> {
-    Parser::new(allocator, include_str!("prelude.d.ts"), SourceType::d_ts()).parse().program.body
+/// The aliases in `used`, and every alias they need, from `prelude.d.ts`.
+///
+/// A linter flags a private alias that a `.ts` file never uses.
+fn prelude<'a>(allocator: &'a Allocator, used: &BTreeSet<&'static str>) -> Vec<Statement<'a>> {
+    let source = include_str!("prelude.d.ts");
+    let aliases = Parser::new(allocator, source, SourceType::d_ts()).parse().program.body;
+    let mut prelude = Prelude { aliases: &aliases, reached: BTreeSet::new() };
+    for &name in used {
+        prelude.reach(name);
+    }
+    let reached = prelude.reached;
+    aliases
+        .into_iter()
+        .filter(|alias| alias_name(alias).is_some_and(|name| reached.contains(name)))
+        .collect()
+}
+
+/// The prelude's aliases, and the ones a file reaches.
+struct Prelude<'p, 'a> {
+    aliases: &'p [Statement<'a>],
+    reached: BTreeSet<&'a str>,
+}
+
+impl<'a> Prelude<'_, 'a> {
+    /// Reaches the alias called `name`, if there is one, then each alias it names.
+    fn reach(&mut self, name: &'a str) {
+        let aliases = self.aliases;
+        let alias = aliases.iter().find(|alias| alias_name(alias) == Some(name));
+        if let Some(alias) = alias
+            && self.reached.insert(name)
+        {
+            self.visit_statement(alias);
+        }
+    }
+}
+
+impl<'a> Visit<'a> for Prelude<'_, 'a> {
+    fn visit_identifier_reference(&mut self, it: &IdentifierReference<'a>) {
+        self.reach(it.name.as_str());
+    }
+}
+
+/// The name `statement` declares, if it's a type alias.
+fn alias_name<'a>(statement: &Statement<'a>) -> Option<&'a str> {
+    match statement {
+        Statement::TSTypeAliasDeclaration(alias) => Some(alias.id.name.as_str()),
+        _ => None,
+    }
+}
+
+/// `export type { crate, serde_json };` for `namespaces`.
+fn export_types<'a>(ast: &AstBuilder<'a>, namespaces: &BTreeSet<&'static str>) -> Statement<'a> {
+    let specifiers = namespaces.iter().map(|&namespace| {
+        let local = ModuleExportName::new_identifier_reference(SPAN, namespace, ast);
+        let exported = ModuleExportName::new_identifier_name(SPAN, namespace, ast);
+        ExportSpecifier::new(SPAN, local, exported, ImportOrExportKind::Value, ast)
+    });
+    let specifiers = ArenaVec::from_iter_in(specifiers, ast);
+    Statement::new_export_named_declaration(SPAN, specifiers, ImportOrExportKind::Type, ast)
 }
 
 /// The program's source text, written only to hold its comments.
@@ -290,23 +350,37 @@ struct Printer<'a> {
     crate_: CrateCrate,
     comments: Comments,
     origins: Origins,
-    prelude: bool,
+
+    /// The prelude aliases its objects with [parts](Rest::Parts) go through.
+    prelude: BTreeSet<&'static str>,
+
+    /// The namespaces at its top, which its export list names.
+    exports: BTreeSet<&'static str>,
 }
 
 impl<'a> Printer<'a> {
     fn new(ast: &'a AstBuilder<'a>, crate_: CrateCrate) -> Self {
-        Self { ast, crate_, comments: Comments::default(), origins: Origins::new(), prelude: false }
+        Self {
+            ast,
+            crate_,
+            comments: Comments::default(),
+            origins: Origins::new(),
+            prelude: BTreeSet::new(),
+            exports: BTreeSet::new(),
+        }
     }
 
-    /// The finished file, holding `imports`, any prelude, then `body`.
+    /// The finished file, holding `imports`, the prelude it uses, `body`, then its export list.
     fn program(
         self,
         imports: impl IntoIterator<Item = Statement<'a>>,
         body: Vec<Statement<'a>>,
     ) -> Program<'a> {
-        let prelude = self.prelude.then(|| prelude(self.ast.allocator()));
-        let statements = imports.into_iter().chain(prelude.into_iter().flatten()).chain(body);
-        self.comments.program(self.ast, SourceType::d_ts(), statements)
+        let ast = self.ast;
+        let prelude = prelude(ast.allocator(), &self.prelude);
+        let exports = (!self.exports.is_empty()).then(|| export_types(ast, &self.exports));
+        let statements = imports.into_iter().chain(prelude).chain(body).chain(exports);
+        self.comments.program(ast, SourceType::d_ts(), statements)
     }
 
     /// `import type * as $ from "./taba.js";`, the file importing itself.
@@ -315,7 +389,7 @@ impl<'a> Printer<'a> {
         self.import_types(SPAN, &format!("./{stem}.js"))
     }
 
-    /// `import type * as $ from "{specifier}";`, which no Rust name can shadow.
+    /// `import type * as $ from "{specifier}";`.
     fn import_types(&self, span: Span, specifier: &str) -> Statement<'a> {
         let ast = self.ast;
         let specifier = ast.allocator().alloc_str(specifier);
@@ -333,7 +407,7 @@ impl<'a> Printer<'a> {
         )
     }
 
-    /// `export namespace crate.foo { ... }`, with a single Rust module's types.
+    /// `declare namespace crate.foo { ... }`, with a single Rust module's types.
     fn module(&mut self, types: &[&Named]) -> Option<Statement<'a>> {
         let path: Vec<_> = self.segments(types.first()?.module_path).collect();
         let (&name, inner) = path.split_first()?;
@@ -343,7 +417,8 @@ impl<'a> Printer<'a> {
             Direction::Input => self.input(&path, named),
         });
         let declarations = ArenaVec::from_iter_in(declarations, ast);
-        Some(self.namespace(name, inner, declarations))
+        self.exports.insert(name);
+        Some(self.namespace(name, inner, declarations, true).into())
     }
 
     /// A module path's namespaces, with `self`'s named crate's as `crate`.
@@ -356,9 +431,11 @@ impl<'a> Printer<'a> {
     /// `export namespace Foo { export type Input = ...; }`
     fn input(&mut self, path: &[&str], named: &Named) -> Statement<'a> {
         let path = [path, &[named.name]].concat();
-        let input = self.alias(&path, INPUT_MEMBER, named);
+        let input = self.alias(&path, INPUT, named);
         self.origin(&path, named);
-        self.namespace(named.name, &[], ArenaVec::from_array_in([input], self.ast))
+        let namespace =
+            self.namespace(named.name, &[], ArenaVec::from_array_in([input], self.ast), false);
+        Statement::new_export_declaration(SPAN, namespace, self.ast)
     }
 
     /// `export type Foo<T> = ...;`, with `named`'s docs, parameters and shape.
@@ -387,13 +464,14 @@ impl<'a> Printer<'a> {
         self.origins.insert(path, named.location);
     }
 
-    /// `export namespace foo.bar { ... }`, `name` holding one namespace per segment of `inner`.
+    /// `namespace foo.bar { ... }`, `name` holding one namespace per segment of `inner`.
     fn namespace(
         &self,
         name: &'a str,
         inner: &[&'a str],
         body: ArenaVec<'a, Statement<'a>>,
-    ) -> Statement<'a> {
+        declare: bool,
+    ) -> Declaration<'a> {
         let ast = self.ast;
         let kind = TSNamespaceDeclarationKind::Namespace;
         let block = TSNamespaceDeclarationBody::new_ts_module_block(SPAN, [], body, ast);
@@ -404,8 +482,7 @@ impl<'a> Printer<'a> {
             )
         });
         let id = BindingIdentifier::new(SPAN, name, ast);
-        let namespace = Declaration::new_ts_namespace_declaration(SPAN, id, body, kind, false, ast);
-        Statement::new_export_declaration(SPAN, namespace, ast)
+        Declaration::new_ts_namespace_declaration(SPAN, id, body, kind, declare, ast)
     }
 }
 
@@ -456,7 +533,7 @@ impl<'a> Declaring<'_, 'a> {
         TSType::new_ts_type_literal(SPAN, [index], ast)
     }
 
-    /// `{ ... }`, merged with [parts](Rest::Parts) through [`INPUT`] or [`OUTPUT`].
+    /// `{ ... }`, or `$OutputWithParts<{ ... }, [...]>` with [parts](Rest::Parts).
     fn object(&mut self, object: &Object) -> TSType<'a> {
         let ast = self.file.ast;
         let mut members = ArenaVec::new_in(ast);
@@ -477,12 +554,12 @@ impl<'a> Declaring<'_, 'a> {
         let Rest::Parts(parts) = object.rest else {
             return literal;
         };
-        self.file.prelude = true;
         let parts = self.tuple(parts);
         let merge = match self.named.direction {
-            Direction::Input => INPUT,
-            Direction::Output => OUTPUT,
+            Direction::Input => INPUT_WITH_PARTS,
+            Direction::Output => OUTPUT_WITH_PARTS,
         };
+        self.file.prelude.insert(merge);
         let name = TSTypeName::new_identifier_reference(SPAN, merge, ast);
         let arguments = ArenaVec::from_array_in([literal, parts], ast);
         let arguments = TSTypeParameterInstantiation::boxed(SPAN, arguments, ast);
@@ -498,7 +575,7 @@ impl<'a> Declaring<'_, 'a> {
     fn union(&mut self, members: &[Shape]) -> TSType<'a> {
         let ast = self.file.ast;
         let mut members = flat(members);
-        // so `A | $Output<{ kind: "B" }, [never]>` prints as `A`
+        // so `A | $OutputWithParts<{ kind: "B" }, [never]>` prints as `A`
         members.retain(|member| !is_never(member));
         // so `Option<Option<T>>` prints as `T | null`
         members.dedup_by(|a, b| matches!((a, b), (Shape::Null, Shape::Null)));
@@ -514,7 +591,7 @@ impl<'a> Declaring<'_, 'a> {
     /// `$.crate.foo.Bar`, then `.Input` for an input, then its arguments.
     fn reference(&mut self, referenced: &Named, arguments: &[Shape]) -> TSType<'a> {
         let ast = self.file.ast;
-        let input = (referenced.direction == Direction::Input).then_some(INPUT_MEMBER);
+        let input = (referenced.direction == Direction::Input).then_some(INPUT);
         let segments = self.file.segments(referenced.module_path);
         let path = segments.chain(iter::once(referenced.name)).chain(input);
         let root = TSTypeName::new_identifier_reference(SPAN, TYPES, ast);
@@ -554,7 +631,7 @@ fn flat(members: &[Shape]) -> Vec<&Shape> {
 
 /// Whether `shape` is `never`, or an object with a `never` part.
 ///
-/// `$Input` and `$Output` intersect every part's keys, so one `never` part makes the object `never`.
+/// An object's parts are intersected, so one `never` part makes the whole object `never`.
 fn is_never(shape: &Shape) -> bool {
     match shape {
         Shape::Never => true,

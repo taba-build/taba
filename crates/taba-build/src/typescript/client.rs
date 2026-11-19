@@ -388,8 +388,6 @@ fn caller<'a>(ast: &AstBuilder<'a>, procedure: &procedure::Declaration) -> State
 }
 
 /// The `@taba-build/rpc` function that sends a procedure, and its name in a script.
-///
-/// The `$` keeps a procedure called `Call` from shadowing it.
 fn session(procedure: &procedure::Declaration) -> (&'static str, &'static str) {
     match (procedure.reply, fallible(procedure)) {
         (ReplyShape::Once(_), false) => ("call", "$call"),
