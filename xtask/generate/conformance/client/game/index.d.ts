@@ -12,3 +12,4 @@ export declare function ticks(
   request: $.crate.game.Ticks.Input,
   signal: AbortSignal,
 ): AsyncGenerator<$.crate.game.Mine, void, undefined>;
+//# sourceMappingURL=index.d.ts.map

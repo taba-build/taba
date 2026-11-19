@@ -14,12 +14,13 @@ all-features = true
 
 [features]
 bundle = ["dep:taba-rolldown", "dep:tokio"]
-typescript = ["dep:taba", "dep:taba-rolldown"]
+typescript = ["dep:sugar_path", "dep:taba", "dep:taba-rolldown"]
 test = ["typescript", "dep:serde_core", "dep:serde_json"]
 
 [dependencies]
 serde_core = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true, features = ["alloc"] }
+sugar_path = { workspace = true, optional = true }
 taba = { workspace = true, optional = true }
 taba-rolldown = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true }

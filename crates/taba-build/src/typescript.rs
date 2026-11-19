@@ -2,9 +2,10 @@
 
 use std::{
     cmp::Ordering,
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fmt::{self, Write},
     iter,
+    panic::Location,
 };
 
 use taba::{
@@ -36,6 +37,9 @@ pub(crate) mod client;
 
 /// The crate who represents `crate`.
 type CrateCrate = &'static str;
+
+/// Each declaration in a file, by path like `crate.shop.Buy.Input`, and where its type is named.
+type Origins = BTreeMap<Vec<String>, Option<&'static Location<'static>>>;
 
 /// The alias an `Input` object with [parts](Rest::Parts) goes through.
 const INPUT: &str = "$Input";
@@ -180,6 +184,7 @@ fn prelude(allocator: &Allocator) -> ArenaVec<'_, Statement<'_>> {
 struct Comments {
     source: String,
     comments: Vec<Comment>,
+    end: Option<String>,
 }
 
 impl Comments {
@@ -199,17 +204,26 @@ impl Comments {
         self.leading(format_args!("// {text}"), CommentKind::Line, CommentContent::None)
     }
 
+    /// Ends the program with `comment`, after its last statement.
+    fn end(&mut self, comment: &str) {
+        self.end = Some(comment.to_owned());
+    }
+
     /// A program of `body`, with these comments.
     fn program<'a>(
-        self,
+        mut self,
         ast: &AstBuilder<'a>,
         source_type: SourceType,
         body: impl IntoIterator<Item = Statement<'a>>,
     ) -> Program<'a> {
+        if let Some(end) = self.end.take() {
+            self.leading(end, CommentKind::Line, CommentContent::None);
+        }
         let source = ast.allocator().alloc_str(&self.source);
         let comments = ArenaVec::from_iter_in(self.comments, ast);
         let body = ArenaVec::from_iter_in(body, ast);
-        Program::new(SPAN, source_type, source, comments, None, [], body, ast)
+        let span = Span::new(0, source.len() as u32);
+        Program::new(span, source_type, source, comments, None, [], body, ast)
     }
 
     fn leading(
@@ -275,12 +289,13 @@ struct Printer<'a> {
     ast: &'a AstBuilder<'a>,
     crate_: CrateCrate,
     comments: Comments,
+    origins: Origins,
     prelude: bool,
 }
 
 impl<'a> Printer<'a> {
     fn new(ast: &'a AstBuilder<'a>, crate_: CrateCrate) -> Self {
-        Self { ast, crate_, comments: Comments::default(), prelude: false }
+        Self { ast, crate_, comments: Comments::default(), origins: Origins::new(), prelude: false }
     }
 
     /// The finished file, holding `imports`, any prelude, then `body`.
@@ -324,8 +339,8 @@ impl<'a> Printer<'a> {
         let (&name, inner) = path.split_first()?;
         let ast = self.ast;
         let declarations = types.iter().map(|named| match named.direction {
-            Direction::Output => self.alias(named.name, named),
-            Direction::Input => self.input(named),
+            Direction::Output => self.alias(&path, named.name, named),
+            Direction::Input => self.input(&path, named),
         });
         let declarations = ArenaVec::from_iter_in(declarations, ast);
         Some(self.namespace(name, inner, declarations))
@@ -339,13 +354,16 @@ impl<'a> Printer<'a> {
     }
 
     /// `export namespace Foo { export type Input = ...; }`
-    fn input(&mut self, named: &Named) -> Statement<'a> {
-        let input = self.alias(INPUT_MEMBER, named);
+    fn input(&mut self, path: &[&str], named: &Named) -> Statement<'a> {
+        let path = [path, &[named.name]].concat();
+        let input = self.alias(&path, INPUT_MEMBER, named);
+        self.origin(&path, named);
         self.namespace(named.name, &[], ArenaVec::from_array_in([input], self.ast))
     }
 
     /// `export type Foo<T> = ...;`, with `named`'s docs, parameters and shape.
-    fn alias(&mut self, name: &'a str, named: &Named) -> Statement<'a> {
+    fn alias(&mut self, path: &[&str], name: &'a str, named: &Named) -> Statement<'a> {
+        self.origin(&[path, &[name]].concat(), named);
         let ast = self.ast;
         let span = self.comments.jsdoc(named.docs);
         let shape = Declaring { file: self, named }.ts(&named.shape);
@@ -361,6 +379,12 @@ impl<'a> Printer<'a> {
         let alias =
             Declaration::new_ts_type_alias_declaration(SPAN, id, parameters, shape, false, ast);
         Statement::new_export_declaration(span, alias, ast)
+    }
+
+    /// Records that the declaration at `path` is `named`'s.
+    fn origin(&mut self, path: &[&str], named: &Named) {
+        let path = path.iter().map(|&segment| segment.to_owned()).collect();
+        self.origins.insert(path, named.location);
     }
 
     /// `export namespace foo.bar { ... }`, `name` holding one namespace per segment of `inner`.

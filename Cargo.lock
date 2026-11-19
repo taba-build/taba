@@ -4353,6 +4353,7 @@ dependencies = [
  "insta",
  "serde_core",
  "serde_json",
+ "sugar_path",
  "taba",
  "taba-rolldown",
  "tokio",

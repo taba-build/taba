@@ -20,7 +20,7 @@ use alloc::{
     string::String,
     vec::Vec,
 };
-use core::{fmt::Debug, hash::Hash, marker::PhantomData};
+use core::{fmt::Debug, hash::Hash, marker::PhantomData, panic::Location};
 
 #[doc(hidden)]
 pub mod __private {
@@ -128,11 +128,8 @@ pub struct Named {
     /// Which derive built it.
     pub direction: Direction,
 
-    /// Where it derives, from [`file!`].
-    pub file: &'static str,
-
-    /// Where it derives, from [`line!`].
-    pub line: u32,
+    /// Its name in the Rust source, or `None` for a type taba describes itself.
+    pub location: Option<&'static Location<'static>>,
 
     /// Its module, from [`module_path!`].
     pub module_path: &'static str,
@@ -394,8 +391,7 @@ mod serde_json {
                     || &Named {
                         docs: &[],
                         direction: Direction::$trait,
-                        file: file!(),
-                        line: line!(),
+                        location: None,
                         module_path: "serde_json::value",
                         name: "Value",
                         parameters: &[],

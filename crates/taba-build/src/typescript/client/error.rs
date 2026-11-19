@@ -14,6 +14,8 @@ enum Kind {
     Unpaired { crate_: &'static str, directory: PathBuf },
     Unmarked(PathBuf),
     Io { path: PathBuf, error: io::Error },
+    Transform { path: PathBuf, error: io::Error },
+    Workspace(io::Error),
 }
 
 impl WriteError {
@@ -35,6 +37,14 @@ impl WriteError {
 
     pub(super) fn io(path: &Path, error: io::Error) -> Self {
         Self(Kind::Io { path: path.to_path_buf(), error })
+    }
+
+    pub(super) fn transform(path: &Path, error: io::Error) -> Self {
+        Self(Kind::Transform { path: path.to_path_buf(), error })
+    }
+
+    pub(super) fn workspace(error: io::Error) -> Self {
+        Self(Kind::Workspace(error))
     }
 }
 
@@ -63,6 +73,10 @@ impl fmt::Display for WriteError {
             Kind::Io { path, error } => {
                 write!(f, "failed client write of {}: {error}", path.display())
             }
+            Kind::Transform { path, error } => {
+                write!(f, "failed client transform of {}: {error}", path.display())
+            }
+            Kind::Workspace(error) => write!(f, "failed workspace lookup for the client: {error}"),
         }
     }
 }

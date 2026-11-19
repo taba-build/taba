@@ -64,7 +64,7 @@ use std::iter;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as Tokens};
-use quote::{ToTokens, quote};
+use quote::{ToTokens, quote, quote_spanned};
 use serde_derive_internals::{
     Ctxt, Derive,
     ast::{Container, Data, Field, Style, Variant},
@@ -305,6 +305,10 @@ impl Expander<'_> {
         let docs = docs(&container.original.attrs);
         let direction = self.direction;
         let shape = self.shape(source);
+        // at the type's name, rather than the derive attribute above it
+        let location = quote_spanned! {container.ident.span()=>
+            ::core::option::Option::Some(::core::panic::Location::caller())
+        };
         quote! {
             fn named<#(#lifetimes,)* #(#type_params,)* #(const #consts: #const_types),*>()
             -> &'static _taba::Named
@@ -320,8 +324,7 @@ impl Expander<'_> {
                         parameters: &[#(#names),*],
                         docs: #docs,
                         direction: #direction,
-                        file: ::core::file!(),
-                        line: ::core::line!(),
+                        location: #location,
                         shape: #shape,
                     }
                 }

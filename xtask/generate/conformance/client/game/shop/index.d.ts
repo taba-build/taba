@@ -13,3 +13,4 @@ export declare function sell(
     signal?: AbortSignal;
   },
 ): Promise<$Result<number, string>>;
+//# sourceMappingURL=index.d.ts.map

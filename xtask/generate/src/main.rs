@@ -28,30 +28,17 @@ fn main() -> io::Result<()> {
 
     for (path, contents) in &files {
         let path = Path::new(path);
-        write(path, &formatted(path, contents)?)?;
+        write(path, formatted(path, contents)?.as_bytes())?;
     }
 
-    // written as an app writes its client, then formatted like the rest
-    game::client().write().map_err(Error::other)?;
-    format(Path::new(game::CLIENT))?;
+    // like an app would, formatted like the rest
+    game::client().transform(formatted).write().map_err(Error::other)?;
 
     let client = format!("{}/**", game::CLIENT);
     let paths = files.iter().map(|(path, _)| *path).chain([client.as_str()]);
     let attributes: String = paths.map(|path| format!("{path} linguist-generated\n")).collect();
     let attributes = format!("# written by `cargo xtask generate`\n{attributes}");
     write(Path::new(".gitattributes"), attributes.as_bytes())
-}
-
-/// Formats the files under `directory` in place.
-fn format(directory: &Path) -> io::Result<()> {
-    let mut oxfmt = oxfmt();
-    oxfmt.arg(directory);
-    let status = oxfmt.status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(Error::other(format!("{oxfmt:?} failed with {status}")))
-    }
 }
 
 /// Writes `contents` to `path` if they changed.
@@ -65,7 +52,7 @@ fn write(path: &Path, contents: &[u8]) -> io::Result<()> {
 }
 
 /// `contents` formatted by oxfmt for `path`.
-fn formatted(path: &Path, contents: &str) -> io::Result<Vec<u8>> {
+fn formatted(path: &Path, contents: &str) -> io::Result<String> {
     let mut oxfmt = oxfmt();
     oxfmt.arg("--stdin-filepath").arg(path);
     let mut child = oxfmt.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()?;
@@ -81,7 +68,7 @@ fn formatted(path: &Path, contents: &str) -> io::Result<Vec<u8>> {
     let output = output?;
     if output.status.success() {
         fed?;
-        Ok(output.stdout)
+        String::from_utf8(output.stdout).map_err(Error::other)
     } else {
         Err(Error::other(format!("{oxfmt:?} failed with {}", output.status)))
     }
