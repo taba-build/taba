@@ -2,6 +2,10 @@
 
 {{#include ../../README.md:pitch}}
 
+Taba parses serde attributes with serde's own parser, and `serde_json` does every read and write.
+TypeScript names each type by its Rust path, so `crate::Todo` is `crate.Todo` and
+`serde_json::value::Value` is `serde_json.value.Value`.
+
 A serde type, as TypeScript sees it:
 
 ```rust
