@@ -3,9 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "definitions": "node src/definitions.ts",
     "rolldown": "node src/rolldown.ts"
   },
   "devDependencies": {
-    "@types/node": "^26.6.6"
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vscode-jsonrpc": "^10.0.0"
   }
 }

@@ -201,6 +201,12 @@ importers:
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vscode-jsonrpc:
+        specifier: ^10.0.0
+        version: 10.0.0
 
 packages:
 
@@ -781,6 +787,10 @@ packages:
   undici-types@8.9.0:
     resolution: {integrity: sha512-KTDyRTYX8sWmKXAikPHHSyc63CRPETMctyjKFupcC6OBLXT3xsN0e9aF7m+mIXutFWpUXuedtowG7iLOzp0kQg==}
 
+  vscode-jsonrpc@10.0.0:
+    resolution: {integrity: sha512-USSfxg0vDIpTQqlQBGxF3mBARyoS8cU7LHLpbYNh6dOJt32dlskxPWB0Irrh5TllTmyf7oNLAvqDqzklbwwnpA==}
+    engines: {node: '>=14.17.0'}
+
 snapshots:
 
   '@oxfmt/binding-android-arm-eabi@0.78.0':
@@ -1065,3 +1075,5 @@ snapshots:
       '@typescript/typescript-win32-x64': 7.0.2
 
   undici-types@8.9.0: {}
+
+  vscode-jsonrpc@10.0.0: {}
