@@ -300,10 +300,10 @@ fn signature<'a>(printer: &mut Printer<'a>, procedure: &procedure::Declaration) 
     let named = (procedure.named)();
     let span = printer.comments.jsdoc(named.docs);
     let function = ast.allocator().alloc_str(&function_name(named));
-    printer.origin(&[function], named);
+    printer.origin(&[function], named, Vec::new());
 
     // only a type's own declaration holds parameters or parts, so any `named` prints these
-    let mut types = Declaring { file: printer, named };
+    let mut types = Declaring::new(printer, named);
 
     let request = types.ts(&Shape::Reference(procedure.named, &[]));
     let (ReplyShape::Once(value) | ReplyShape::Strand(value)) = procedure.reply;

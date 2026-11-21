@@ -76,6 +76,7 @@ use syn::{
     Attribute, DeriveInput, Generics, Ident, LitStr,
     ext::IdentExt,
     parse_macro_input, parse_quote,
+    spanned::Spanned,
     visit::{self, Visit},
     visit_mut::{self, VisitMut},
 };
@@ -305,10 +306,7 @@ impl Expander<'_> {
         let docs = docs(&container.original.attrs);
         let direction = self.direction;
         let shape = self.shape(source);
-        // at the type's name, rather than the derive attribute above it
-        let location = quote_spanned! {container.ident.span()=>
-            ::core::option::Option::Some(::core::panic::Location::caller())
-        };
+        let location = location(container.ident.span());
         quote! {
             fn named<#(#lifetimes,)* #(#type_params,)* #(const #consts: #const_types),*>()
             -> &'static _taba::Named
@@ -324,7 +322,7 @@ impl Expander<'_> {
                         parameters: &[#(#names),*],
                         docs: #docs,
                         direction: #direction,
-                        location: #location,
+                        location: ::core::option::Option::Some(#location),
                         shape: #shape,
                     }
                 }
@@ -527,7 +525,7 @@ impl Expander<'_> {
     fn struct_tag(&self) -> Option<Tokens> {
         let tag = self.direction.struct_tag(&self.container.attrs)?;
         let name = self.direction.name(self.container.attrs.name());
-        Some(required(tag, literal(&name)))
+        Some(required(tag, self.container.ident.span(), literal(&name)))
     }
 
     /// An object of `fields`, led by `tag` when there is one.
@@ -606,11 +604,13 @@ impl Expander<'_> {
         let stand_in = self.field_stand_in(field);
         let optional = self.optional_key(field, stand_in.as_ref());
         let docs = docs(&field.original.attrs);
+        let location = location(field.member.span());
         let ty = stand_in.as_ref().unwrap_or(field.ty);
         let shape = self.direction.shape(ty);
         quote! {
             _taba::Property {
                 key: #key,
+                location: #location,
                 optional: #optional,
                 docs: #docs,
                 shape: #shape,
@@ -736,12 +736,12 @@ impl Expander<'_> {
         if matches!(variant.style, Style::Unit) {
             return literal(&name);
         }
-        object([required(&name, self.untagged(variant))], self.rest())
+        object([required(&name, variant.ident.span(), self.untagged(variant))], self.rest())
     }
 
     fn internally_tagged(&self, tag: &str, variant: &Variant) -> Tokens {
         let name = self.direction.name(variant.attrs.name());
-        let tag = required(tag, literal(&name));
+        let tag = required(tag, variant.ident.span(), literal(&name));
         match variant.style {
             // serde takes extra keys here, with `deny_unknown_fields` or without
             Style::Unit => object([tag], quote!(_taba::Rest::Ignored)),
@@ -758,11 +758,11 @@ impl Expander<'_> {
 
     fn adjacently_tagged(&self, tag: &str, content: &str, variant: &Variant) -> Tokens {
         let name = self.direction.name(variant.attrs.name());
-        let tag = required(tag, literal(&name));
+        let tag = required(tag, variant.ident.span(), literal(&name));
         if matches!(variant.style, Style::Unit) {
             return object([tag], self.rest());
         }
-        let value = required(content, self.untagged(variant));
+        let value = required(content, variant.ident.span(), self.untagged(variant));
         object([tag, value], self.rest())
     }
 }
@@ -824,8 +824,23 @@ fn literal(name: &str) -> Tokens {
     quote!(_taba::Shape::Literal(#name))
 }
 
-fn required(key: &str, shape: Tokens) -> Tokens {
-    quote!(_taba::Property { key: #key, optional: false, docs: &[], shape: #shape })
+/// A key serde adds, at the variant or struct it's for.
+fn required(key: &str, span: Span, shape: Tokens) -> Tokens {
+    let location = location(span);
+    quote! {
+        _taba::Property {
+            key: #key,
+            location: #location,
+            optional: false,
+            docs: &[],
+            shape: #shape,
+        }
+    }
+}
+
+/// `Location::caller()` at `span`, rather than the derive attribute above it.
+fn location(span: Span) -> Tokens {
+    quote_spanned!(span=> ::core::panic::Location::caller())
 }
 
 fn object(properties: impl IntoIterator<Item = Tokens>, rest: Tokens) -> Tokens {

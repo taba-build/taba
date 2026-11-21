@@ -84,7 +84,7 @@ impl Case {
     fn statement<'a>(&self, printer: &mut Printer<'a>, number: usize) -> Statement<'a> {
         let ast = printer.ast;
         let span = printer.comments.line(&self.title);
-        let declared = Declaring { file: printer, named: named(self.shape) }.ts(self.shape);
+        let declared = Declaring::new(printer, named(self.shape)).ts(self.shape);
         let declared = TSTypeAnnotation::boxed(SPAN, declared, ast);
         let name = ast.allocator().alloc_str(&format!("case{number}"));
         let id = BindingPattern::new_binding_identifier(SPAN, name, ast);

@@ -11,7 +11,7 @@ use std::{
 };
 
 use taba::{
-    __private::typescript::{Direction, Named, Object, Rest, Shape},
+    __private::typescript::{Direction, Named, Object, Property, Rest, Shape},
     Input, Output,
 };
 use taba_rolldown::oxc::{
@@ -42,8 +42,16 @@ pub(crate) mod client;
 /// The crate who represents `crate`.
 type CrateCrate = &'static str;
 
-/// Each declaration in a file, by path like `crate.shop.Buy.Input`, and where its type is named.
-type Origins = BTreeMap<Vec<String>, Option<&'static Location<'static>>>;
+/// Each declared path in a file, like `crate.shop.Buy.Input`, and its [`Origin`].
+type Origins = BTreeMap<Vec<String>, Origin>;
+
+/// Where a declaration's name and keys are in the Rust source.
+struct Origin {
+    name: &'static Location<'static>,
+
+    /// One per property key, in print order.
+    keys: Vec<&'static Location<'static>>,
+}
 
 /// The member of an input's namespace that declares it, like `Foo.Input`.
 const INPUT: &str = "Input";
@@ -432,7 +440,7 @@ impl<'a> Printer<'a> {
     fn input(&mut self, path: &[&str], named: &Named) -> Statement<'a> {
         let path = [path, &[named.name]].concat();
         let input = self.alias(&path, INPUT, named);
-        self.origin(&path, named);
+        self.origin(&path, named, Vec::new());
         let namespace =
             self.namespace(named.name, &[], ArenaVec::from_array_in([input], self.ast), false);
         Statement::new_export_declaration(SPAN, namespace, self.ast)
@@ -440,10 +448,12 @@ impl<'a> Printer<'a> {
 
     /// `export type Foo<T> = ...;`, with `named`'s docs, parameters and shape.
     fn alias(&mut self, path: &[&str], name: &'a str, named: &Named) -> Statement<'a> {
-        self.origin(&[path, &[name]].concat(), named);
         let ast = self.ast;
         let span = self.comments.jsdoc(named.docs);
-        let shape = Declaring { file: self, named }.ts(&named.shape);
+        let mut declaring = Declaring::new(self, named);
+        let shape = declaring.ts(&named.shape);
+        let keys = declaring.keys;
+        self.origin(&[path, &[name]].concat(), named, keys);
         let parameters = (!named.parameters.is_empty()).then(|| {
             let parameters = named.parameters.iter().map(|&parameter| {
                 let name = BindingIdentifier::new(SPAN, parameter, ast);
@@ -458,10 +468,13 @@ impl<'a> Printer<'a> {
         Statement::new_export_declaration(span, alias, ast)
     }
 
-    /// Records that the declaration at `path` is `named`'s.
-    fn origin(&mut self, path: &[&str], named: &Named) {
+    /// Adds the declaration at `path` and its `keys` as `named`'s.
+    ///
+    /// An output's alias and its input's namespace share a path, which TypeScript merges.
+    fn origin(&mut self, path: &[&str], named: &Named, keys: Vec<&'static Location<'static>>) {
+        let Some(name) = named.location else { return };
         let path = path.iter().map(|&segment| segment.to_owned()).collect();
-        self.origins.insert(path, named.location);
+        self.origins.entry(path).or_insert(Origin { name, keys: Vec::new() }).keys.extend(keys);
     }
 
     /// `namespace foo.bar { ... }`, `name` holding one namespace per segment of `inner`.
@@ -490,9 +503,16 @@ impl<'a> Printer<'a> {
 struct Declaring<'p, 'a> {
     file: &'p mut Printer<'a>,
     named: &'p Named,
+
+    /// Its [`Origin::keys`].
+    keys: Vec<&'static Location<'static>>,
 }
 
-impl<'a> Declaring<'_, 'a> {
+impl<'p, 'a> Declaring<'p, 'a> {
+    fn new(file: &'p mut Printer<'a>, named: &'p Named) -> Self {
+        Self { file, named, keys: Vec::new() }
+    }
+
     fn ts(&mut self, shape: &Shape) -> TSType<'a> {
         let ast = self.file.ast;
         match shape {
@@ -539,13 +559,14 @@ impl<'a> Declaring<'_, 'a> {
         let mut members = ArenaVec::new_in(ast);
         for property in object.properties {
             let span = self.file.comments.jsdoc(property.docs);
+            let key = self.key(property);
             let shape = self.ts(&property.shape);
             members.push(TSSignature::new_ts_property_signature(
                 span,
                 false,
                 property.optional,
                 false,
-                self.key(property.key),
+                key,
                 Some(TSTypeAnnotation::boxed(SPAN, shape, ast)),
                 ast,
             ));
@@ -607,12 +628,14 @@ impl<'a> Declaring<'_, 'a> {
         TSType::new_ts_type_reference(SPAN, name, arguments, ast)
     }
 
-    fn key(&self, key: &'a str) -> PropertyKey<'a> {
+    /// `property`'s key, recorded with where it is in the Rust source.
+    fn key(&mut self, property: &Property) -> PropertyKey<'a> {
+        self.keys.push(property.location);
         let ast = self.file.ast;
-        if is_identifier_name_patched(key) {
-            PropertyKey::new_static_identifier(SPAN, key, ast)
+        if is_identifier_name_patched(property.key) {
+            PropertyKey::new_static_identifier(SPAN, property.key, ast)
         } else {
-            PropertyKey::new_string_literal(SPAN, key, None, ast)
+            PropertyKey::new_string_literal(SPAN, property.key, None, ast)
         }
     }
 }

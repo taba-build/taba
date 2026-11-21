@@ -110,6 +110,9 @@ pub struct Property {
     /// The key, as [`serde`] names it.
     pub key: &'static str,
 
+    /// The field's name in the Rust source, or its variant's or struct's for a key serde adds.
+    pub location: &'static Location<'static>,
+
     /// Whether the key may be missing.
     pub optional: bool,
 
