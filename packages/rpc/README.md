@@ -36,3 +36,6 @@ throws "taba can't find its session".
 otherwise, any contribution intentionally submitted for inclusion in this crate by you, as defined
 in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or
 conditions.</sub>
+
+<sub>Tauri is a trademark of The Tauri Programme within the Commons Conservancy. Taba is **not** an
+official Tauri project.</sub>

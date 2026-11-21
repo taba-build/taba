@@ -41,3 +41,8 @@ tauri::Builder::default()
 
 [`taba-tauri`]: api/taba_tauri/
 [`Router`]: api/taba/rpc/struct.Router.html
+
+---
+
+<sub>Tauri is a trademark of The Tauri Programme within the Commons Conservancy. Taba is **not** an
+official Tauri project.</sub>

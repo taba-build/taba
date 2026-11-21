@@ -63,3 +63,8 @@ passes every command Taba doesn't answer to your existing handler, so an app mov
 at a time.
 
 [`serde_json`]: https://docs.rs/serde_json
+
+---
+
+<sub>Tauri is a trademark of The Tauri Programme within the Commons Conservancy. Taba is **not** an
+official Tauri project.</sub>
