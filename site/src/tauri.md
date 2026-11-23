@@ -15,9 +15,9 @@ async fn add_todo(AddTodo(todo): AddTodo) -> Result<Todo, Never> {
 A [`Router`] gives each procedure its handler:
 
 ```rust
-use taba::rpc::Router;
+use taba::{Procedures, rpc::Router};
 
-let procedures = taba::procedures!().declare::<AddTodo>();
+let procedures = Procedures::new().declare::<AddTodo>();
 let router = Router::builder([procedures]).handle(add_todo).build()?;
 ```
 

@@ -1,10 +1,10 @@
 error[E0277]: the trait bound `impl futures_util::Future<Output = impl Stream<Item = Result<u32, Never>>>: Replies<Strand<u32>, Never>` is not satisfied
-  --> tests/ui/strand/handler_awaits.rs:20:68
+  --> tests/ui/strand/handler_awaits.rs:20:66
    |
-20 |     Router::builder([taba::procedures!().declare::<Ore>()]).handle(ore);
-   |                                                             ------ ^^^ the trait `Stream` is not implemented for `impl futures_util::Future<Output = impl Stream<Item = Result<u32, Never>>>`
-   |                                                             |
-   |                                                             required by a bound introduced by this call
+20 |     Router::builder([Procedures::new().declare::<Ore>()]).handle(ore);
+   |                                                           ------ ^^^ the trait `Stream` is not implemented for `impl futures_util::Future<Output = impl Stream<Item = Result<u32, Never>>>`
+   |                                                           |
+   |                                                           required by a bound introduced by this call
    |
    = help: the following other types implement trait `Stream`:
              &mut S

@@ -1,8 +1,8 @@
 error: future cannot be sent between threads safely
-  --> tests/ui/call/not_send.rs:23:68
+  --> tests/ui/call/not_send.rs:23:66
    |
-23 |     Router::builder([taba::procedures!().declare::<Buy>()]).handle(buy);
-   |                                                                    ^^^ future returned by `buy` is not `Send`
+23 |     Router::builder([Procedures::new().declare::<Buy>()]).handle(buy);
+   |                                                                  ^^^ future returned by `buy` is not `Send`
    |
    = help: within `impl Future<Output = Result<u32, Never>>`, the trait `Send` is not implemented for `Rc<u32>`
 note: future is not `Send` as this value is used across an await

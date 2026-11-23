@@ -39,10 +39,7 @@ use taba_rolldown::oxc::{
 pub(crate) mod cases;
 pub(crate) mod client;
 
-/// The crate who represents `crate`.
-type CrateCrate = &'static str;
-
-/// Each declared path in a file, like `crate.shop.Buy.Input`, and its [`Origin`].
+/// Each declared path in a file, like `app.shop.Buy.Input`, and its [`Origin`].
 type Origins = BTreeMap<Vec<String>, Origin>;
 
 /// Where a declaration's name and keys are in the Rust source.
@@ -62,18 +59,17 @@ const INPUT_WITH_PARTS: &str = "$InputWithParts";
 /// The prelude alias for an output object with [parts](Rest::Parts).
 const OUTPUT_WITH_PARTS: &str = "$OutputWithParts";
 
-/// The namespace a file imports the declared types as, like `$.crate.Foo`.
+/// The namespace a file imports the declared types as, like `$.app.Foo`.
 const TYPES: &str = "$";
 
 /// A TypeScript module declaring Rust types.
 ///
 /// `Foo` is what `serde_json` writes for `Foo`, and `Foo.Input` is what it reads as `Foo`.
 ///
-/// Other crates are top-level namespaces, so one named for a TypeScript reserved word, like
+/// Crates are top-level namespaces, so one named for a TypeScript reserved word, like
 /// `default`, can't be declared.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Declarations {
-    crate_: CrateCrate,
     types: BTreeSet<Declared>,
 }
 
@@ -107,9 +103,9 @@ impl Declarations {
     /// The file to write the module as, since it imports itself by that name.
     pub const FILE: &'static str = "taba.d.ts";
 
-    /// Uses the name for the `crate` keyword.
-    pub fn new(crate_: &'static str) -> Self {
-        Self { crate_, types: BTreeSet::new() }
+    /// A module declaring no types.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Declares what TypeScript needs to describe `T` as `serde_json` **writes** it.
@@ -165,7 +161,7 @@ impl Declarations {
         }
     }
 
-    /// `declare namespace crate.foo { ... }` for each module's types, in `printer`'s file.
+    /// `declare namespace app.foo { ... }` for each module's types, in `printer`'s file.
     fn modules<'a>(&self, printer: &mut Printer<'a>) -> Vec<Statement<'a>> {
         let types: Vec<_> = self.types.iter().map(|declared| declared.0).collect();
         let modules = types.chunk_by(|first, second| first.module_path == second.module_path);
@@ -177,7 +173,7 @@ impl fmt::Display for Declarations {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let allocator = Allocator::default();
         let ast = AstBuilder::new(&allocator);
-        let mut printer = Printer::new(&ast, self.crate_);
+        let mut printer = Printer::new(&ast);
         let modules = self.modules(&mut printer);
         let import = printer.import_self();
         f.write_str(&Codegen::new().build(&printer.program([import], modules)).code)
@@ -245,7 +241,7 @@ fn alias_name<'a>(statement: &Statement<'a>) -> Option<&'a str> {
     }
 }
 
-/// `export type { crate, serde_json };` for `namespaces`.
+/// `export type { app, serde_json };` for `namespaces`.
 fn export_types<'a>(ast: &AstBuilder<'a>, namespaces: &BTreeSet<&'static str>) -> Statement<'a> {
     let specifiers = namespaces.iter().map(|&namespace| {
         let local = ModuleExportName::new_identifier_reference(SPAN, namespace, ast);
@@ -366,7 +362,6 @@ fn escaped(text: &str) -> impl fmt::Display {
 /// A declarations file as it's built, and what every declaration in it shares.
 struct Printer<'a> {
     ast: &'a AstBuilder<'a>,
-    crate_: CrateCrate,
     comments: Comments,
     origins: Origins,
 
@@ -378,10 +373,9 @@ struct Printer<'a> {
 }
 
 impl<'a> Printer<'a> {
-    fn new(ast: &'a AstBuilder<'a>, crate_: CrateCrate) -> Self {
+    fn new(ast: &'a AstBuilder<'a>) -> Self {
         Self {
             ast,
-            crate_,
             comments: Comments::default(),
             origins: Origins::new(),
             prelude: BTreeSet::new(),
@@ -426,9 +420,9 @@ impl<'a> Printer<'a> {
         )
     }
 
-    /// `declare namespace crate.foo { ... }`, with a single Rust module's types.
+    /// `declare namespace app.foo { ... }`, with a single Rust module's types.
     fn module(&mut self, types: &[&Named]) -> Option<Statement<'a>> {
-        let path: Vec<_> = self.segments(types.first()?.module_path).collect();
+        let path: Vec<_> = types.first()?.module_path.split("::").collect();
         let (&name, inner) = path.split_first()?;
         let ast = self.ast;
         let declarations = types.iter().map(|named| match named.direction {
@@ -438,13 +432,6 @@ impl<'a> Printer<'a> {
         let declarations = ArenaVec::from_iter_in(declarations, ast);
         self.exports.insert(name);
         Some(self.namespace(name, inner, declarations, true).into())
-    }
-
-    /// A module path's namespaces, with `self`'s named crate's as `crate`.
-    fn segments(&self, module_path: &'static str) -> impl Iterator<Item = &'static str> {
-        let mut segments = module_path.split("::");
-        let root = segments.next().map(|first| if first == self.crate_ { "crate" } else { first });
-        root.into_iter().chain(segments)
     }
 
     /// `export namespace Foo { export type Input = ...; }`
@@ -620,11 +607,11 @@ impl<'p, 'a> Declaring<'p, 'a> {
         }
     }
 
-    /// `$.crate.foo.Bar`, then `.Input` for an input, then its arguments.
+    /// `$.app.foo.Bar`, then `.Input` for an input, then its arguments.
     fn reference(&mut self, referenced: &Named, arguments: &[Shape]) -> TSType<'a> {
         let ast = self.file.ast;
         let input = (referenced.direction == Direction::Input).then_some(INPUT);
-        let segments = self.file.segments(referenced.module_path);
+        let segments = referenced.module_path.split("::");
         let path = segments.chain(iter::once(referenced.name)).chain(input);
         let root = TSTypeName::new_identifier_reference(SPAN, TYPES, ast);
         let name = path.fold(root, |left, segment| {

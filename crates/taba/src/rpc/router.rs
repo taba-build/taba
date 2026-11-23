@@ -288,7 +288,7 @@ mod tests {
     use futures_util::{FutureExt, StreamExt, stream};
     use serde_json::value::RawValue;
 
-    use super::{Router, State};
+    use super::{Procedures, Router, State};
     use crate::rpc::tests::{Buy, BuyError, Game, Generator, Hire, Ore, Sell};
 
     #[test]
@@ -303,8 +303,8 @@ mod tests {
         let sell = |State(game): State<Game>, _: Sell| ready(Ok(game.drills));
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
 
-        let shop = crate::procedures!().declare::<Buy>().declare::<Sell>();
-        let mine = crate::procedures!().declare::<Ore>();
+        let shop = Procedures::new().declare::<Buy>().declare::<Sell>();
+        let mine = Procedures::new().declare::<Ore>();
         let builder = Router::builder([shop, mine]);
         let builder = builder.with_state(Game { drills: 3 }).handle(buy).handle(ore);
         let router = builder.handle_with(Game { drills: 9 }, sell).build().unwrap();
@@ -358,8 +358,8 @@ mod tests {
         let undeclared = |_: Hire| ready(Ok(0));
 
         // the same procedure from two lists is one declaration
-        let shop = crate::procedures!().declare::<Buy>().declare::<Sell>();
-        let builder = Router::builder([shop, crate::procedures!().declare::<Buy>()]);
+        let shop = Procedures::new().declare::<Buy>().declare::<Sell>();
+        let builder = Router::builder([shop, Procedures::new().declare::<Buy>()]);
         let error = builder.handle(buy).handle(also_buy).handle(undeclared).build().unwrap_err();
         insta::assert_snapshot!(error, @"
         can't build the router:

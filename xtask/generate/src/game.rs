@@ -286,7 +286,7 @@ struct Tally<K>(BTreeMap<K, u32>);
 
 /// The game's procedures.
 fn procedures() -> Procedures {
-    taba::procedures!()
+    Procedures::new()
         .declare::<Buy>()
         .declare::<Ticks>()
         .declare::<shop::Sell>()
@@ -301,7 +301,7 @@ pub(crate) fn client() -> Build {
 pub(crate) const CLIENT: &str = "xtask/generate/conformance/client";
 
 pub(crate) fn declarations() -> Declarations {
-    Declarations::new("generate")
+    Declarations::new()
         .output::<Mine>()
         .output::<Unreachable>()
         .input::<Buy>()
@@ -333,7 +333,7 @@ pub(crate) fn cases() -> Cases {
         incoming: vec![],
         last_digger: Id { raw: 0, kind: PhantomData },
     };
-    let mut cases = Cases::new("generate");
+    let mut cases = Cases::new();
     cases.output(&Mine {
         ore: BTreeMap::from([("copper".to_owned(), 12)]),
         hauls: vec![(Generator::Drill, 1.5), (Generator::Furnace, f64::NAN)],

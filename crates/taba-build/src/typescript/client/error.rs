@@ -9,7 +9,6 @@ pub struct WriteError(Kind);
 
 #[derive(Debug)]
 enum Kind {
-    Unpackaged { procedure: String, crate_: &'static str },
     Reserved { procedure: String, function: String },
     Unpaired { crate_: &'static str, directory: PathBuf },
     Unmarked(PathBuf),
@@ -19,10 +18,6 @@ enum Kind {
 }
 
 impl WriteError {
-    pub(super) fn unpackaged(procedure: String, crate_: &'static str) -> Self {
-        Self(Kind::Unpackaged { procedure, crate_ })
-    }
-
     pub(super) fn reserved(procedure: String, function: String) -> Self {
         Self(Kind::Reserved { procedure, function })
     }
@@ -51,9 +46,6 @@ impl WriteError {
 impl fmt::Display for WriteError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.0 {
-            Kind::Unpackaged { procedure, crate_ } => {
-                write!(f, "failed client for `{procedure}`: `{crate_}` has no package")
-            }
             Kind::Reserved { procedure, function } => {
                 write!(
                     f,

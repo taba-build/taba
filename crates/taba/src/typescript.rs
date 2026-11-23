@@ -155,13 +155,8 @@ impl Named {
 
     /// The crate it's defined in.
     pub fn crate_(&self) -> &'static str {
-        crate_of(self.module_path)
+        self.module_path.split_once("::").map_or(self.module_path, |(crate_, _)| crate_)
     }
-}
-
-/// The crate a [`module_path!`] starts with.
-pub(crate) fn crate_of(module_path: &'static str) -> &'static str {
-    module_path.split_once("::").map_or(module_path, |(crate_, _)| crate_)
 }
 
 /// Which derive built a [`Named`].

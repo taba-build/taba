@@ -47,7 +47,7 @@ type $InputRest<Part> = Part extends unknown
     ? Part[string]
     : unknown
   : never;
-declare namespace crate.game {
+declare namespace generate.game {
   /** A boost the mine is under. */
   export type Boost = {
     /** How many times faster it digs. */
@@ -56,15 +56,15 @@ declare namespace crate.game {
   export namespace Buy {
     /** Buys generators. */
     export type Input =
-      | $.crate.game.Generator.Input
+      | $.generate.game.Generator.Input
       | {
-          generator: $.crate.game.Generator.Input;
+          generator: $.generate.game.Generator.Input;
           /** How many beyond the first, none when absent. */
           extra?: number;
           /** A note for the shop. */
           note: $.serde_json.value.Value.Input;
         }
-      | $.crate.game.Shipment.Input<$.crate.game.shop.Generator.Input>;
+      | $.generate.game.Shipment.Input<$.generate.game.shop.Generator.Input>;
   }
   /** A cart of ore, by kind. */
   export type Cart = $OutputWithParts<
@@ -101,21 +101,21 @@ declare namespace crate.game {
         [key: string]: number;
       };
       /** The last hauls, newest first. */
-      hauls: [$.crate.game.Generator, number | null][];
+      hauls: [$.generate.game.Generator, number | null][];
       /** What the shop sells. */
-      for_sale: $.crate.game.shop.Generator[];
+      for_sale: $.generate.game.shop.Generator[];
       /** The level below, dug on a `*\/5` schedule. */
-      deeper: $.crate.game.Mine | null;
+      deeper: $.generate.game.Mine | null;
       running: boolean;
       /** The last survey, as the surveyor wrote it. */
       survey: $.serde_json.value.Value;
       "gift-note": string;
       /** What's on its way. */
-      incoming: $.crate.game.Shipment<$.crate.game.shop.Generator>[];
+      incoming: $.generate.game.Shipment<$.generate.game.shop.Generator>[];
       /** The generator that dug last. */
-      last_digger: $.crate.game.Id;
+      last_digger: $.generate.game.Id;
     },
-    [$.crate.game.Boost | null, $.crate.game.Weather]
+    [$.generate.game.Boost | null, $.generate.game.Weather]
   >;
   /** Something on its way to the mine. */
   export type Shipment<T> = $OutputWithParts<
@@ -123,7 +123,7 @@ declare namespace crate.game {
       /** Ticks until it arrives. */
       eta: number;
       /** The shipment after it. */
-      next: $.crate.game.Shipment<T> | null;
+      next: $.generate.game.Shipment<T> | null;
     },
     [T]
   >;
@@ -134,7 +134,7 @@ declare namespace crate.game {
         /** Ticks until it arrives. */
         eta: number;
         /** The shipment after it. */
-        next?: $.crate.game.Shipment.Input<T> | null;
+        next?: $.generate.game.Shipment.Input<T> | null;
       },
       [T]
     >;
@@ -152,7 +152,7 @@ declare namespace crate.game {
         };
       };
 }
-declare namespace crate.game.shop {
+declare namespace generate.game.shop {
   /** A generator for sale. */
   export type Generator = {
     /** What it costs, in ore. */
@@ -171,7 +171,7 @@ declare namespace crate.game.shop {
   }
   export namespace Sell {
     /** Sells a generator back, for some of its price. */
-    export type Input = $.crate.game.shop.Generator.Input;
+    export type Input = $.generate.game.shop.Generator.Input;
   }
 }
 declare namespace serde_json.value {
@@ -196,5 +196,5 @@ declare namespace serde_json.value {
         };
   }
 }
-export type { crate, serde_json };
+export type { generate, serde_json };
 //# sourceMappingURL=index.d.ts.map

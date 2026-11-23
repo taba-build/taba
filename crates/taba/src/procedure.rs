@@ -7,26 +7,12 @@ use serde_core::{Serialize, Serializer};
 
 use crate::{
     Output,
-    typescript::{Named, Request, Shape, crate_of},
+    typescript::{Named, Request, Shape},
 };
 
 #[doc(hidden)]
 pub mod __private {
     pub use super::{Declaration, ReplyShape};
-}
-
-/// Starts a [`Procedures`] list in the calling crate.
-///
-/// ```rust,ignore
-/// pub fn procedures() -> Procedures {
-///     taba::procedures!().declare::<shop::Buy>().declare::<Hauls>()
-/// }
-/// ```
-#[macro_export]
-macro_rules! procedures {
-    () => {
-        $crate::Procedures::__new(::core::module_path!())
-    };
 }
 
 /// What TypeScript can call or subscribe to.
@@ -104,10 +90,9 @@ pub enum ReplyShape {
     Strand(Shape),
 }
 
-/// A list of procedures, started with [`procedures!`](crate::procedures).
-#[derive(Debug)]
+/// A list of procedures.
+#[derive(Debug, Default)]
 pub struct Procedures {
-    crate_: &'static str,
     pub(crate) declarations: Vec<Declaration>,
 }
 
@@ -125,10 +110,9 @@ pub struct Declaration {
 }
 
 impl Procedures {
-    /// A list started in the module at `module_path`.
-    #[doc(hidden)]
-    pub fn __new(module_path: &'static str) -> Self {
-        Self { crate_: crate_of(module_path), declarations: Vec::new() }
+    /// A list with no procedures.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Adds `P`.
@@ -141,12 +125,6 @@ impl Procedures {
         let error = const { &<P::Error as Output>::__SHAPE };
         self.declarations.push(Declaration { named: P::named, reply, error });
         self
-    }
-
-    /// The crate it was started in.
-    #[doc(hidden)]
-    pub fn __crate(&self) -> &'static str {
-        self.crate_
     }
 
     #[doc(hidden)]

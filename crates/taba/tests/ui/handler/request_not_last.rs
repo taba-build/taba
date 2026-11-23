@@ -1,7 +1,7 @@
 //! A handler whose request comes before its state.
 
 use serde::Deserialize;
-use taba::{Input, Never, Procedure, rpc::{Router, State}};
+use taba::{Input, Never, Procedure, Procedures, rpc::{Router, State}};
 
 #[derive(Clone)]
 struct Game;
@@ -19,5 +19,5 @@ async fn buy(_: Buy, State(_): State<Game>) -> Result<u32, Never> {
 }
 
 fn main() {
-    Router::builder([taba::procedures!().declare::<Buy>()]).with_state(Game).handle(buy);
+    Router::builder([Procedures::new().declare::<Buy>()]).with_state(Game).handle(buy);
 }

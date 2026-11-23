@@ -3,12 +3,12 @@ import type * as $ from "../../index.js";
 import type { Result as $Result } from "@taba-build/rpc";
 /** Each new price, until the shop closes. */
 export declare function prices(
-  request: $.crate.game.shop.Prices.Input,
+  request: $.generate.game.shop.Prices.Input,
   signal: AbortSignal,
 ): AsyncGenerator<$Result<number, string>, void, undefined>;
 /** Sells a generator back, for some of its price. */
 export declare function sell(
-  request: $.crate.game.shop.Sell.Input,
+  request: $.generate.game.shop.Sell.Input,
   options?: {
     signal?: AbortSignal;
   },

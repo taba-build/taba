@@ -2,14 +2,14 @@
 import type * as $ from "../index.js";
 /** Buys generators. */
 export declare function buy(
-  request: $.crate.game.Buy.Input,
+  request: $.generate.game.Buy.Input,
   options?: {
     signal?: AbortSignal;
   },
-): Promise<$.crate.game.Cart>;
+): Promise<$.generate.game.Cart>;
 /** The mine after each tick. */
 export declare function ticks(
-  request: $.crate.game.Ticks.Input,
+  request: $.generate.game.Ticks.Input,
   signal: AbortSignal,
-): AsyncGenerator<$.crate.game.Mine, void, undefined>;
+): AsyncGenerator<$.generate.game.Mine, void, undefined>;
 //# sourceMappingURL=index.d.ts.map

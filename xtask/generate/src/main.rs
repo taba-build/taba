@@ -17,7 +17,7 @@ use taba::{
 use taba_build::{Declarations, bundle};
 
 fn main() -> io::Result<()> {
-    let wire = Declarations::new("taba").output::<Frame>().input::<Batch>().both::<SessionId>();
+    let wire = Declarations::new().output::<Frame>().input::<Batch>().both::<SessionId>();
     let injected = bundle("crates/taba-tauri/src/injected.ts").map_err(Error::other)?;
     let files = [
         ("crates/taba-tauri/src/injected.js", injected),

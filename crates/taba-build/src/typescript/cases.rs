@@ -22,14 +22,13 @@ use taba_rolldown::oxc::{
     span::SPAN,
 };
 
-use super::{CrateCrate, Declaring, Printer};
+use super::{Declaring, Printer};
 
 /// JSON that tsc checks against declarations, like taba crate's rustc ui tests.
 ///
 /// Expected failures have `@ts-expect-error` to ensure that specific error happens.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Cases {
-    crate_: CrateCrate,
     cases: Vec<Case>,
 }
 
@@ -42,9 +41,9 @@ struct Case {
 }
 
 impl Cases {
-    /// Uses the name for the `crate` keyword.
-    pub fn new(crate_: &'static str) -> Self {
-        Self { crate_, cases: Vec::new() }
+    /// Cases with no JSON to check.
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// The JSON [`serde_json`] writes for `value`, which `T`'s declaration must accept.
@@ -71,7 +70,7 @@ impl fmt::Display for Cases {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let allocator = Allocator::default();
         let ast = AstBuilder::new(&allocator);
-        let mut printer = Printer::new(&ast, self.crate_);
+        let mut printer = Printer::new(&ast);
         let cases = self.cases.iter().zip(1..);
         let cases = cases.map(|(case, number)| case.statement(&mut printer, number)).collect();
         let import = printer.import_self();
@@ -80,7 +79,7 @@ impl fmt::Display for Cases {
 }
 
 impl Case {
-    /// `export const case1: $.crate.foo.Bar = ...;`, led by the case's title as a comment.
+    /// `export const case1: $.app.foo.Bar = ...;`, led by the case's title as a comment.
     fn statement<'a>(&self, printer: &mut Printer<'a>, number: usize) -> Statement<'a> {
         let ast = printer.ast;
         let span = printer.comments.line(&self.title);

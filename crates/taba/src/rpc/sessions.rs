@@ -270,7 +270,7 @@ mod tests {
 
     use super::{SessionId, Sessions};
     use crate::{
-        Never,
+        Never, Procedures,
         rpc::{
             Error, Router,
             tests::{Buy, Ore},
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn a_call_answers_under_its_id() {
         let buy = |_: Buy| ready(Ok(3));
-        let builder = Router::builder([crate::procedures!().declare::<Buy>()]);
+        let builder = Router::builder([Procedures::new().declare::<Buy>()]);
         let backend = Backend::new(builder.handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let call = json!([{ "kind": "call", "value": [42, "taba::rpc::tests::Buy", { "generator": "Drill" }] }]);
@@ -326,7 +326,7 @@ mod tests {
     fn a_strand_waits_for_each_next_until_it_ends() {
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
         let buy = |_: Buy| ready(Ok(10));
-        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let builder = Router::builder([Procedures::new().declare::<Ore>().declare::<Buy>()]);
         let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batches = [
@@ -359,7 +359,7 @@ mod tests {
     fn a_strand_answers_every_next() {
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
         let buy = |_: Buy| ready(Ok(10));
-        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let builder = Router::builder([Procedures::new().declare::<Ore>().declare::<Buy>()]);
         let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batch = json!([
@@ -380,7 +380,7 @@ mod tests {
     fn a_strand_starts_at_its_first_next() {
         let ore = |_: Ore| -> Empty<Result<u32, Never>> { panic!("the mine flooded") };
         let buy = |_: Buy| ready(Ok(10));
-        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let builder = Router::builder([Procedures::new().declare::<Ore>().declare::<Buy>()]);
         let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batches = [
@@ -404,7 +404,7 @@ mod tests {
     fn a_cancel_stops_its_strand() {
         let ore = |_: Ore| stream::iter([Ok(3), Ok(6)]);
         let buy = |_: Buy| ready(Ok(10));
-        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let builder = Router::builder([Procedures::new().declare::<Ore>().declare::<Buy>()]);
         let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batch = json!([
@@ -424,7 +424,7 @@ mod tests {
             panic!("the mine flooded at depth {depth}")
         };
         let buy = |_: Buy| ready(Ok(10));
-        let builder = Router::builder([crate::procedures!().declare::<Ore>().declare::<Buy>()]);
+        let builder = Router::builder([Procedures::new().declare::<Ore>().declare::<Buy>()]);
         let backend = Backend::new(builder.handle(ore).handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let batches = [
@@ -466,7 +466,7 @@ mod tests {
     #[test]
     fn a_session_answers_only_its_address() {
         let buy = |_: Buy| ready(Ok(10));
-        let builder = Router::builder([crate::procedures!().declare::<Buy>()]);
+        let builder = Router::builder([Procedures::new().declare::<Buy>()]);
         let backend = Backend::new(builder.handle(buy).build().unwrap());
         let id = backend.sessions.connect("main");
         let call = json!([{ "kind": "call", "value": [0, "taba::rpc::tests::Buy", { "generator": "Drill" }] }]);

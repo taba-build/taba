@@ -2,7 +2,7 @@
 
 use futures_util::{Stream, stream};
 use serde::Deserialize;
-use taba::{Input, Never, Procedure, Strand, rpc::Router};
+use taba::{Input, Never, Procedure, Procedures, Strand, rpc::Router};
 
 #[derive(Deserialize, Input)]
 struct Ore;
@@ -17,5 +17,5 @@ fn ore(_: Ore) -> impl Stream<Item = Result<String, Never>> {
 }
 
 fn main() {
-    Router::builder([taba::procedures!().declare::<Ore>()]).handle(ore);
+    Router::builder([Procedures::new().declare::<Ore>()]).handle(ore);
 }

@@ -2,9 +2,9 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type { Result } from "#rpc/index.js";
 import { SESSION, type Session } from "#rpc/session.js";
-import type { crate, serde_json } from "#rpc/taba.js";
+import type { serde_json, taba } from "#rpc/taba.js";
 
-type Message = crate.rpc.wire.Message.Input;
+type Message = taba.rpc.wire.Message.Input;
 
 /** An app's `Err`. */
 class Failed {
@@ -25,7 +25,7 @@ type Waiter = {
 const encoder = new TextEncoder();
 const outbox: Message[] = [];
 const waiters = new Map<number, Waiter>();
-let session: crate.rpc.sessions.SessionId;
+let session: taba.rpc.sessions.SessionId;
 let locked = true; // nothing sends until connect answers
 let nextId = 0;
 let failed: { reason: unknown } | undefined;
@@ -73,7 +73,7 @@ function encode(batch: Message[]): Uint8Array {
   }
 }
 
-function body(value: crate.rpc.wire.Batch.Input | crate.rpc.sessions.SessionId.Input): Uint8Array {
+function body(value: taba.rpc.wire.Batch.Input | taba.rpc.sessions.SessionId.Input): Uint8Array {
   return encoder.encode(JSON.stringify(value));
 }
 
@@ -161,7 +161,7 @@ function outcome<T, E>(value: Answer): Result<T, E> {
 /** Hands each frame to its waiter until a poll rejects. */
 async function polls() {
   for (;;) {
-    const frame = await invoke<crate.rpc.wire.Frame>("taba::poll", body(session));
+    const frame = await invoke<taba.rpc.wire.Frame>("taba::poll", body(session));
     const waiter = waiters.get(frame.id);
     waiters.delete(frame.id);
     switch (frame.kind) {
@@ -185,7 +185,7 @@ async function polls() {
 if (window.top === window) {
   const instance = Object.freeze({ call, subscribe, tryCall, trySubscribe }) satisfies Session;
   Object.defineProperty(globalThis, SESSION, { value: instance });
-  invoke<crate.rpc.sessions.SessionId>("taba::connect")
+  invoke<taba.rpc.sessions.SessionId>("taba::connect")
     .then((id) => {
       session = id;
       flush().catch(fail);

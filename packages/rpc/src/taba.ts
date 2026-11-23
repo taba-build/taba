@@ -48,7 +48,7 @@ declare namespace serde_json.value {
         };
   }
 }
-declare namespace crate.rpc.sessions {
+declare namespace taba.rpc.sessions {
   /** A session's id. */
   export type SessionId = number;
   export namespace SessionId {
@@ -56,10 +56,10 @@ declare namespace crate.rpc.sessions {
     export type Input = number;
   }
 }
-declare namespace crate.rpc.wire {
+declare namespace taba.rpc.wire {
   export namespace Batch {
     /** A session's [`Message`]s, in the order TypeScript sent them. */
-    export type Input = [$.crate.rpc.sessions.SessionId.Input, $.crate.rpc.wire.Message.Input[]];
+    export type Input = [$.taba.rpc.sessions.SessionId.Input, $.taba.rpc.wire.Message.Input[]];
   }
   /** What a poll returns. */
   export type Frame = $OutputWithParts<
@@ -67,7 +67,7 @@ declare namespace crate.rpc.wire {
       /** Its message's id. */
       id: number;
     },
-    [$.crate.rpc.wire.Kind]
+    [$.taba.rpc.wire.Kind]
   >;
   /** What a frame tells TypeScript. */
   export type Kind =
@@ -84,7 +84,7 @@ declare namespace crate.rpc.wire {
       }
     | {
         kind: "reject";
-        value: $.crate.rpc.wire.Rejection;
+        value: $.taba.rpc.wire.Rejection;
       };
   export namespace Message {
     /**
@@ -129,4 +129,4 @@ declare namespace crate.rpc.wire {
         value: string;
       };
 }
-export type { crate, serde_json };
+export type { serde_json, taba };

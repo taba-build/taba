@@ -1,10 +1,10 @@
 import { session, type Session } from "./session.js";
-import type { crate } from "./taba.js";
+import type { taba } from "./taba.js";
 
 /** What a fallible procedure resolves to. */
 export type Result<T, E> = { ok: true; value: T } | { ok: false; error: E };
 
-export type Rejection = crate.rpc.wire.Rejection;
+export type Rejection = taba.rpc.wire.Rejection;
 
 /** Calls the procedure `name`. */
 export const call: Session["call"] = (...args) => session().call(...args);

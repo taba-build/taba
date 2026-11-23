@@ -1,1 +1,1 @@
-{"version":3,"file":"index.d.ts","names":[],"sources":["../../../src/game.rs"],"mappings":"A;A,Y,K,C,M,a,C;;AAmIK,O,iBAAA,G;E,O,E,C,C,K,C,I,C,G,C,K;E,O,C,E;I,M,C,E,W,C;G;C,E,O,C,C,C,K,C,I,C,I,C,C;;AAwBE,O,iBAAA,K;E,O,E,C,C,K,C,I,C,K,C,K;E,M,E,W;C,E,c,C,C,C,K,C,I,C,I,E,I,E,S,C,C;;A"}
+{"version":3,"file":"index.d.ts","names":[],"sources":["../../../src/game.rs"],"mappings":"A;A,Y,K,C,M,a,C;;AAmIK,O,iBAAA,G;E,O,E,C,C,Q,C,I,C,G,C,K;E,O,C,E;I,M,C,E,W,C;G;C,E,O,C,C,C,Q,C,I,C,I,C,C;;AAwBE,O,iBAAA,K;E,O,E,C,C,Q,C,I,C,K,C,K;E,M,E,W;C,E,c,C,C,C,Q,C,I,C,I,E,I,E,S,C,C;;A"}
