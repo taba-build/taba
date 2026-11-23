@@ -28,7 +28,7 @@ use taba_rolldown::oxc::{
         },
         builder::AstBuilder,
     },
-    ast_visit::Visit,
+    ast_visit::{Visit, VisitMut},
     codegen::Codegen,
     parser::Parser,
     span::{SPAN, SourceType, Span},
@@ -189,7 +189,9 @@ impl fmt::Display for Declarations {
 /// A linter flags a private alias that a `.ts` file never uses.
 fn prelude<'a>(allocator: &'a Allocator, used: &BTreeSet<&'static str>) -> Vec<Statement<'a>> {
     let source = include_str!("prelude.d.ts");
-    let aliases = Parser::new(allocator, source, SourceType::d_ts()).parse().program.body;
+    let mut program = Parser::new(allocator, source, SourceType::d_ts()).parse().program;
+    SpanZeroer.visit_program(&mut program);
+    let aliases = program.body;
     let mut prelude = Prelude { aliases: &aliases, reached: BTreeSet::new() };
     for &name in used {
         prelude.reach(name);
@@ -199,6 +201,15 @@ fn prelude<'a>(allocator: &'a Allocator, used: &BTreeSet<&'static str>) -> Vec<S
         .into_iter()
         .filter(|alias| alias_name(alias).is_some_and(|name| reached.contains(name)))
         .collect()
+}
+
+/// Puts every span at [`SPAN`], where no [comment](Comments) is attached.
+struct SpanZeroer;
+
+impl VisitMut<'_> for SpanZeroer {
+    fn visit_span(&mut self, it: &mut Span) {
+        *it = SPAN;
+    }
 }
 
 /// The prelude's aliases, and the ones a file reaches.
